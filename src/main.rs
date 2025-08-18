@@ -1,3 +1,36 @@
+use app::Blackhole;
+use bevy::prelude::*;
+use bevy::{prelude::*, window::PresentMode};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
+
+mod app;
+
+const NAME: &str = "Black Hole";
+
 fn main() {
-	println!("Hello, world!");
+	App::new()
+		.add_plugins((
+			DefaultPlugins
+				.set(WindowPlugin {
+					primary_window: Some(Window {
+						title: NAME.into(),
+						name: Some(NAME.into()),
+						resolution: (1920., 1080.).into(),
+						present_mode: PresentMode::AutoNoVsync,
+						..default()
+					}),
+					..default()
+				})
+				.set(AssetPlugin {
+					#[cfg(not(debug_assertions))]
+					watch_for_changes_override: Some(true),
+					..Default::default()
+				}),
+			EguiPlugin {
+				enable_multipass_for_primary_context: true,
+			},
+			WorldInspectorPlugin::new(),
+			Blackhole,
+		))
+		.run();
 }
