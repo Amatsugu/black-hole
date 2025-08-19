@@ -27,13 +27,6 @@ pub struct TracerLabel;
 #[reflect(Resource)]
 pub struct TracerRenderTextures(pub Handle<Image>, pub Handle<Image>);
 
-#[derive(Resource)]
-pub struct TracerPipeline {
-	pub texture_bind_group_layout: BindGroupLayout,
-	pub init_pipeline: CachedComputePipelineId,
-	pub update_pipeline: CachedComputePipelineId,
-}
-
 #[derive(Resource, Clone, ExtractResource, ShaderType, Default)]
 pub struct TracerUniforms {
 	pub sky_color: LinearRgba,
@@ -47,7 +40,8 @@ impl Plugin for TracerPipelinePlugin {
 			ExtractResourcePlugin::<TracerRenderTextures>::default(),
 			ExtractResourcePlugin::<TracerUniforms>::default(),
 		));
-		app.init_resource::<TracerUniforms>();
+		app.init_resource::<TracerUniforms>()
+			.add_systems(Update, switch_textures);
 		let render_app = app.sub_app_mut(RenderApp);
 
 		// render_app.add_systems(Startup, init_pipeline);
@@ -62,6 +56,21 @@ impl Plugin for TracerPipelinePlugin {
 		let render_app = app.sub_app_mut(RenderApp);
 		render_app.init_resource::<TracerPipeline>();
 	}
+}
+
+fn switch_textures(images: Res<TracerRenderTextures>, mut sprite: Single<&mut Sprite>) {
+	if sprite.image == images.0 {
+		sprite.image = images.1.clone();
+	} else {
+		sprite.image = images.0.clone();
+	}
+}
+
+#[derive(Resource)]
+pub struct TracerPipeline {
+	pub texture_bind_group_layout: BindGroupLayout,
+	pub init_pipeline: CachedComputePipelineId,
+	pub update_pipeline: CachedComputePipelineId,
 }
 
 impl FromWorld for TracerPipeline {
@@ -109,6 +118,7 @@ impl FromWorld for TracerPipeline {
 	}
 }
 
+#[allow(dead_code)] //Pending bevy update for RenderStartup schedule
 fn init_pipeline(
 	mut commands: Commands,
 	render_device: Res<RenderDevice>,

@@ -4,6 +4,7 @@ use bevy::{
 	render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
 	window::PrimaryWindow,
 };
+use iyes_perf_ui::prelude::*;
 
 use crate::render::pipeline::{TracerPipelinePlugin, TracerRenderTextures, TracerUniforms};
 
@@ -14,15 +15,28 @@ impl Plugin for Blackhole {
 		app.register_type::<TracerRenderTextures>();
 
 		app.add_systems(Startup, setup);
-
 		app.add_plugins(TracerPipelinePlugin);
 		app.insert_resource(TracerUniforms {
 			sky_color: LinearRgba::BLUE,
 		});
+
+		//Perf UI
+		app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
+			.add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
+			.add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
+			.add_plugins(PerfUiPlugin);
 	}
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Single<&Window, With<PrimaryWindow>>) {
+	commands.spawn((
+		PerfUiRoot::default(),
+		PerfUiEntryFPS::default(),
+		PerfUiEntryFPSWorst::default(),
+		PerfUiEntryFrameTime::default(),
+		PerfUiEntryFrameTimeWorst::default(),
+	));
+
 	let size = window.physical_size();
 
 	let extent = Extent3d {
