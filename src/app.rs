@@ -1,29 +1,26 @@
 use bevy::{
 	asset::RenderAssetUsages,
 	prelude::*,
-	render::{
-		RenderApp,
-		render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-	},
+	render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
 	window::PrimaryWindow,
 };
+
+use crate::render::pipeline::{TracerPipelinePlugin, TracerRenderTextures, TracerUniforms};
+
 pub struct Blackhole;
 
 impl Plugin for Blackhole {
 	fn build(&self, app: &mut App) {
-		app.register_type::<RenderTextures>();
+		app.register_type::<TracerRenderTextures>();
 
 		app.add_systems(Startup, setup);
 
-		let render_app = app.sub_app_mut(RenderApp);
-
-		render_app.add_systems(Startup, init_pipeline);
+		app.add_plugins(TracerPipelinePlugin);
+		app.insert_resource(TracerUniforms {
+			sky_color: LinearRgba::BLUE,
+		});
 	}
 }
-
-#[derive(Resource, Reflect)]
-#[reflect(Resource)]
-struct RenderTextures(pub Handle<Image>, pub Handle<Image>);
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Single<&Window, With<PrimaryWindow>>) {
 	let size = window.physical_size();
@@ -39,7 +36,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 	let mut image = Image::new_fill(
 		extent,
 		TextureDimension::D2,
-		&[0; PIXEL_SIZE],
+		&[255; PIXEL_SIZE],
 		PIXEL_FORMAT,
 		RenderAssetUsages::RENDER_WORLD,
 	);
@@ -63,7 +60,5 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 
 	commands.spawn(Camera2d);
 
-	commands.insert_resource(RenderTextures(img0, img1));
+	commands.insert_resource(TracerRenderTextures(img0, img1));
 }
-
-fn init_pipeline(mut commands: Commands) {}

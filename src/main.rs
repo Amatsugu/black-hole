@@ -1,10 +1,13 @@
 use app::Blackhole;
 use bevy::prelude::*;
-use bevy::{prelude::*, window::PresentMode};
+use bevy::window::PresentMode;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 mod app;
+mod render;
 
+pub const SHADER_ASSET_PATH: &str = "trace.wgsl";
+pub const WORKGROUP_SIZE: u32 = 8;
 const NAME: &str = "Black Hole";
 
 fn main() {
