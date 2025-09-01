@@ -15,6 +15,7 @@ use bevy::{
 		},
 		renderer::{RenderDevice, RenderQueue},
 		texture::GpuImage,
+		view::{ViewUniform, ViewUniforms},
 	},
 };
 
@@ -85,6 +86,7 @@ impl FromWorld for TracerPipeline {
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 					uniform_buffer::<TracerUniforms>(false),
+					uniform_buffer::<ViewUniform>(false),
 				),
 			),
 		);
@@ -133,6 +135,7 @@ fn init_pipeline(
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 				uniform_buffer::<TracerUniforms>(false),
+				uniform_buffer::<ViewUniform>(false),
 			),
 		),
 	);
@@ -175,9 +178,12 @@ fn prepare_bind_groups(
 	tracer_uniforms: Res<TracerUniforms>,
 	render_device: Res<RenderDevice>,
 	queue: Res<RenderQueue>,
+	view_uniforms: Res<ViewUniforms>,
 ) {
 	let view_a = gpu_images.get(&tracer_images.0).unwrap();
 	let view_b = gpu_images.get(&tracer_images.1).unwrap();
+
+	//Todo: Insert View Uniforms
 
 	// Uniform buffer is used here to demonstrate how to set up a uniform in a compute shader
 	// Alternatives such as storage buffers or push constants may be more suitable for your use case
