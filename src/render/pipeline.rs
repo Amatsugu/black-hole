@@ -4,6 +4,7 @@ use bevy::{
 	prelude::*,
 	render::{
 		Render, RenderApp, RenderSet,
+		camera::CameraProjection,
 		extract_resource::{ExtractResource, ExtractResourcePlugin},
 		render_asset::RenderAssets,
 		render_graph::{RenderGraph, RenderLabel},
@@ -15,11 +16,10 @@ use bevy::{
 		},
 		renderer::{RenderDevice, RenderQueue},
 		texture::GpuImage,
-		view::{ViewUniform, ViewUniforms},
 	},
 };
 
-use crate::{SHADER_ASSET_PATH, render::node::TracerNode};
+use crate::{SHADER_ASSET_PATH, components::rt::RTCamera, render::node::TracerNode};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct TracerLabel;
@@ -31,6 +31,8 @@ pub struct TracerRenderTextures(pub Handle<Image>, pub Handle<Image>);
 #[derive(Resource, Clone, ExtractResource, ShaderType, Default)]
 pub struct TracerUniforms {
 	pub sky_color: LinearRgba,
+	pub world_from_clip: Mat4,
+	pub world_position: Vec3,
 }
 
 pub struct TracerPipelinePlugin;
@@ -43,6 +45,8 @@ impl Plugin for TracerPipelinePlugin {
 		));
 		app.init_resource::<TracerUniforms>()
 			.add_systems(Update, switch_textures);
+
+		app.add_systems(First, update_tracer_uniforms);
 		let render_app = app.sub_app_mut(RenderApp);
 
 		// render_app.add_systems(Startup, init_pipeline);
@@ -86,7 +90,6 @@ impl FromWorld for TracerPipeline {
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 					uniform_buffer::<TracerUniforms>(false),
-					uniform_buffer::<ViewUniform>(false),
 				),
 			),
 		);
@@ -135,7 +138,6 @@ fn init_pipeline(
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 				uniform_buffer::<TracerUniforms>(false),
-				uniform_buffer::<ViewUniform>(false),
 			),
 		),
 	);
@@ -170,6 +172,24 @@ fn init_pipeline(
 #[derive(Resource)]
 pub struct TracerImageBindGroups(pub [BindGroup; 2]);
 
+fn update_tracer_uniforms(
+	mut tracer_uniforms: ResMut<TracerUniforms>,
+	rt_camera: Single<(&GlobalTransform, &Projection), With<RTCamera>>,
+) {
+	let (transform, projection) = rt_camera.into_inner();
+	let view = transform.compute_matrix().inverse();
+	let clip_from_view = match projection {
+		Projection::Perspective(perspective_projection) => perspective_projection.get_clip_from_view(),
+		_ => unreachable!("This should never happen: Invalid projection type on RT Camera"),
+	};
+	let clip_from_world = clip_from_view * view;
+	let world_from_clip = clip_from_world.inverse();
+	info_once!("world_from_clip = {:?}", world_from_clip);
+
+	tracer_uniforms.world_from_clip = world_from_clip;
+	tracer_uniforms.world_position = transform.translation();
+}
+
 fn prepare_bind_groups(
 	mut commands: Commands,
 	pipeline: Res<TracerPipeline>,
@@ -178,12 +198,9 @@ fn prepare_bind_groups(
 	tracer_uniforms: Res<TracerUniforms>,
 	render_device: Res<RenderDevice>,
 	queue: Res<RenderQueue>,
-	view_uniforms: Res<ViewUniforms>,
 ) {
 	let view_a = gpu_images.get(&tracer_images.0).unwrap();
 	let view_b = gpu_images.get(&tracer_images.1).unwrap();
-
-	//Todo: Insert View Uniforms
 
 	// Uniform buffer is used here to demonstrate how to set up a uniform in a compute shader
 	// Alternatives such as storage buffers or push constants may be more suitable for your use case

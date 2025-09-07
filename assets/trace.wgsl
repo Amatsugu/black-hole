@@ -5,7 +5,6 @@
 
 @group(0) @binding(2) var<uniform> config: TracerUniforms;
 
-@group(0) @binding(3) var<uniform> view: ViewUniform;
 
 struct View {
     view_proj: mat4x4<f32>,
@@ -16,25 +15,10 @@ struct View {
     inv_projection: mat4x4<f32>, // equic to Unity's _CameraInverseProjection
 };
 
-struct ViewUniform {
-    clip_from_world: mat4x4<f32>,
-    unjittered_clip_from_world: mat4x4<f32>,
-    world_from_clip: mat4x4<f32>,
-    world_from_view: mat4x4<f32>,
-    view_from_world: mat4x4<f32>,
-    clip_from_view: mat4x4<f32>,
-    view_from_clip: mat4x4<f32>,
-    world_position: vec3<f32>,
-    exposure: f32,
-    viewport: vec4<f32>,
-    frustum: array<vec4<f32>, 6>,
-    color_grading: vec4<f32>, // simplified for example
-    mip_bias: f32,
-    frame_count: u32,
-};
-
 struct TracerUniforms {
     sky_color: vec4<f32>,
+    world_from_clip: mat4x4<f32>,
+    world_position: vec3<f32>,
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -53,17 +37,33 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let size = textureDimensions(output);
 
 	let loc = vec2<f32>(f32(invocation_id.x), f32(invocation_id.y)) / vec2<f32>(size.xy);
-	let ndc  = loc * 2.0f - 1.0f;
+	// let ndc  = loc * 2.0f - 1.0f;
 
-    var ray = createCameraRay(ndc);
+    // var ray = createCameraRay(ndc);
 
-    var result = vec3<f32>(0.0f);
+    // var result = vec3<f32>(0.0f);
 
-    var hit = trace(ray);
-    result += ray.energy * shade(&ray, hit);
+    // var hit = trace(ray);
+    // result += ray.energy * shade(&ray, hit);
 
-    let color = vec4(result , 1.0);
+    // var rayTest = createCameraRay2(ndc);
+    // let dirColor = (rayTest.direction * 0.5) + vec3<f32>(0.5, 0.5, 0.5);
+    // let color = vec4(dirColor, 1.0);
+
+    let ndc = vec2<f32>(
+        (f32(invocation_id.x) / f32(size.x)) * 2.0 - 1.0,
+        (f32(invocation_id.y) / f32(size.y)) * 2.0 - 1.0
+    );
+
+    let clip = vec4<f32>(ndc, 0.0, 1.0);
+    let world = config.world_from_clip * clip;
+    let world_pos = world.xyz / world.w;
+
+    // map directly to color
+    let color = vec4<f32>((world_pos * 0.1) + vec3<f32>(0.5), 1.0);
+
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
+
     textureStore(output, location, color);
 }
 
@@ -113,15 +113,30 @@ fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 
 
 fn createCameraRay(ndc: vec2<f32>) -> Ray {
-    // let origin = (view.inv_view * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
 
-    // let direction_view = (view.inv_projection * vec4<f32>(uv, 0.0, 1.0)).xyz;
-    // let direction = (view.inv_view * vec4<f32>(direction_view, 0.0)).xyz;
-
-    let origin = view.world_position;
-    let target_point = view.world_from_clip * vec4<f32>(ndc, 0.0f, 1.0f);
+    let origin = config.world_position;
+    let target_point = config.world_from_clip * vec4<f32>(ndc, 0.0f, 1.0f);
     let direction_point = target_point.xyz / target_point.w;
     let direction = normalize(direction_point - origin);
+
+    return createRay(origin, direction);
+}
+
+fn createCameraRay2(ndc: vec2<f32>) -> Ray {
+    // clip points at near and far
+    let near_clip = vec4<f32>(ndc, 0.0, 1.0);
+    let far_clip  = vec4<f32>(ndc, 1.0, 1.0);
+
+    // project into world space
+    let near_world4 = config.world_from_clip * near_clip;
+    let far_world4  = config.world_from_clip * far_clip;
+
+    let near_world = near_world4.xyz / near_world4.w;
+    let far_world  = far_world4.xyz / far_world4.w;
+
+    // ray starts at near plane, points toward far plane
+    let origin = near_world;
+    let direction = normalize(far_world - near_world);
 
     return createRay(origin, direction);
 }
@@ -139,7 +154,9 @@ fn createSphere(position: vec3<f32>, radius: f32) -> Sphere
 fn intersectSphere(ray: Ray, bestHit: ptr<function, RayHit>, sphereIndex: u32)
 {
 	//Sphere sphere = _Spheres[sphereIndex];
-	var sphere = createSphere(vec3<f32>(0.0), 1.0f);
+	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, -10.0f), 1.0f);
+
+
 	var d = ray.origin - sphere.position;
 	var p1 = -dot(ray.direction, d);
 	var p2sqr = p1 * p1 - dot(d, d) + sphere.radius * sphere.radius;
@@ -209,7 +226,7 @@ fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 	else
 	{
 		(*ray).energy = vec3(0.0f);
-		return vec3<f32>(0.1f);
+		return config.sky_color.xyz;
 		// var theta = acos(ray.direction.y) / -PI;
 		// var phi = atan2(ray.direction.x, -ray.direction.z) / -PI * .5f;
 		// return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;

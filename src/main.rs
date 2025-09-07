@@ -4,6 +4,7 @@ use bevy::window::PresentMode;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 mod app;
+pub mod components;
 mod render;
 
 pub const SHADER_ASSET_PATH: &str = "trace.wgsl";
