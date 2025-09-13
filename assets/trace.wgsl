@@ -37,36 +37,26 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let size = textureDimensions(output);
 
 	let loc = vec2<f32>(f32(invocation_id.x), f32(invocation_id.y)) / vec2<f32>(size.xy);
-	// let ndc  = loc * 2.0f - 1.0f;
+	let ndc  = loc * 2.0f - 1.0f;
 
-    // var ray = createCameraRay(ndc);
+    var ray = createCameraRay(ndc);
+    var result = vec3<f32>(0.0, 0.0, 0.0);
 
-    // var result = vec3<f32>(0.0f);
-
-    // var hit = trace(ray);
-    // result += ray.energy * shade(&ray, hit);
-
-    // var rayTest = createCameraRay2(ndc);
-    // let dirColor = (rayTest.direction * 0.5) + vec3<f32>(0.5, 0.5, 0.5);
-    // let color = vec4(dirColor, 1.0);
-
-    let ndc = vec2<f32>(
-        (f32(invocation_id.x) / f32(size.x)) * 2.0 - 1.0,
-        (f32(invocation_id.y) / f32(size.y)) * 2.0 - 1.0
-    );
+    var hit = trace(ray);
+    result += ray.energy * shade(&ray, hit);
 
     let clip = vec4<f32>(ndc, 0.0, 1.0);
     let world = config.world_from_clip * clip;
     let world_pos = world.xyz / world.w;
+    let dir = normalize(world_pos - config.world_position);
 
-    // map directly to color
-    let color = vec4<f32>((world_pos * 0.1) + vec3<f32>(0.5), 1.0);
+    // let color = vec4<f32>((ray.direction * 0.5) + vec3<f32>(0.5), 1.0);
 
+    let color = vec4<f32>(result, 1.0);
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
     textureStore(output, location, color);
 }
-
 
 struct Ray {
     origin: vec3<f32>,
@@ -94,13 +84,12 @@ struct Sphere
 fn createRayHit() -> RayHit {
     var hit: RayHit;
     hit.position = vec3<f32>(0.0, 0.0, 0.0);
-    hit.distance = -1.0f; // A negative number to represent infinity
+    hit.distance = 9999999.0f;
     hit.normal = vec3<f32>(0.0, 0.0, 0.0);
     hit.albedo = vec3<f32>(0.0, 0.0, 0.0);
     hit.specular = vec3<f32>(0.0, 0.0, 0.0);
     return hit;
 }
-
 
 fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 {
@@ -111,15 +100,13 @@ fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 	return ray;
 }
 
-
 fn createCameraRay(ndc: vec2<f32>) -> Ray {
 
-    let origin = config.world_position;
-    let target_point = config.world_from_clip * vec4<f32>(ndc, 0.0f, 1.0f);
+    let target_point = config.world_from_clip * vec4<f32>(ndc, 0.0, 1.0);
     let direction_point = target_point.xyz / target_point.w;
-    let direction = normalize(direction_point - origin);
+    let direction = normalize(direction_point - config.world_position);
 
-    return createRay(origin, direction);
+    return createRay(config.world_position, direction);
 }
 
 fn createCameraRay2(ndc: vec2<f32>) -> Ray {
@@ -154,7 +141,7 @@ fn createSphere(position: vec3<f32>, radius: f32) -> Sphere
 fn intersectSphere(ray: Ray, bestHit: ptr<function, RayHit>, sphereIndex: u32)
 {
 	//Sphere sphere = _Spheres[sphereIndex];
-	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, -10.0f), 1.0f);
+	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, 0.0f), 2.0f);
 
 
 	var d = ray.origin - sphere.position;
@@ -189,7 +176,7 @@ fn intersectGroundPlane(ray: Ray, bestHit: ptr<function,RayHit>)
 		(*bestHit).distance = t;
 		(*bestHit).position = ray.origin + t * ray.direction;
 		(*bestHit).normal = vec3<f32>(0.0f, 1.0f, 0.0f);
-		(*bestHit).albedo = vec3(0.8f);
+		(*bestHit).albedo = vec3(0.1f);
 		(*bestHit).specular = vec3(0.3f);
 	}
 }
@@ -205,7 +192,7 @@ fn trace(ray: Ray) -> RayHit
 
 fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 {
-	if hit.distance > -1.0f
+	if hit.distance < 9999999.0f
 	{
 		(*ray).origin = hit.position + hit.normal * 0.001f;
 		(*ray).direction = reflect((*ray).direction, hit.normal);
@@ -213,9 +200,9 @@ fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 
 		//Shadows
 		// var shadow = false;
-		// Ray shadowRay = createRay(hit.position + hit.normal * 0.001f, -1 * _DirectionalLight.xyz);
-		// RayHit shadowHit = Trace(shadowRay);
-		// if (shadowHit.distance != 1.#INF)
+		// var shadowRay = createRay(hit.position + hit.normal * 0.001f, -1 * _DirectionalLight.xyz);
+		// var shadowHit = trace(shadowRay);
+		// if (shadowHit.distance != 9999999.0f)
 		// {
 		// 	return float3(0.0f, 0.0f, 0.0f);
 		// }
@@ -227,8 +214,8 @@ fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 	{
 		(*ray).energy = vec3(0.0f);
 		return config.sky_color.xyz;
-		// var theta = acos(ray.direction.y) / -PI;
-		// var phi = atan2(ray.direction.x, -ray.direction.z) / -PI * .5f;
+		// var theta = acos((*ray).direction.y) / -PI;
+		// var phi = atan2((*ray).direction.x, -(*ray).direction.z) / -PI * .5f;
 		// return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
 	}
 }

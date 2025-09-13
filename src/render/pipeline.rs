@@ -174,9 +174,9 @@ pub struct TracerImageBindGroups(pub [BindGroup; 2]);
 
 fn update_tracer_uniforms(
 	mut tracer_uniforms: ResMut<TracerUniforms>,
-	rt_camera: Single<(&GlobalTransform, &Projection), With<RTCamera>>,
+	rt_camera: Single<(&GlobalTransform, &Projection, &Camera), With<RTCamera>>,
 ) {
-	let (transform, projection) = rt_camera.into_inner();
+	let (transform, projection, cam) = rt_camera.into_inner();
 	let view = transform.compute_matrix().inverse();
 	let clip_from_view = match projection {
 		Projection::Perspective(perspective_projection) => perspective_projection.get_clip_from_view(),
@@ -184,7 +184,8 @@ fn update_tracer_uniforms(
 	};
 	let clip_from_world = clip_from_view * view;
 	let world_from_clip = clip_from_world.inverse();
-	info_once!("world_from_clip = {:?}", world_from_clip);
+	// info!("clip_from_view = {:?}", clip_from_view);
+	// info!("world_from_clip = {:?}", world_from_clip);
 
 	tracer_uniforms.world_from_clip = world_from_clip;
 	tracer_uniforms.world_position = transform.translation();

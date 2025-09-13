@@ -24,7 +24,7 @@ impl Plugin for Blackhole {
 		app.add_systems(Startup, setup);
 		app.add_plugins(TracerPipelinePlugin);
 		app.insert_resource(TracerUniforms {
-			sky_color: LinearRgba::BLUE,
+			sky_color: LinearRgba::rgb(0.1, 0.0, 0.01),
 			..default()
 		});
 
