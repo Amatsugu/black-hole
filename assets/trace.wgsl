@@ -39,16 +39,22 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let loc = vec2<f32>(f32(invocation_id.x), f32(invocation_id.y)) / vec2<f32>(size.xy);
 	let ndc  = loc * 2.0f - 1.0f;
 
-    var ray = createCameraRay(ndc);
-    var result = vec3<f32>(0.0, 0.0, 0.0);
+    var ray = createCameraRay2(ndc);
+    var result = vec3<f32>(0.0);
 
-    var hit = trace(ray);
-    result += ray.energy * shade(&ray, hit);
+    for (var i: i32 = 0; i < 8; i++){
+	    var hit = trace(ray);
+	    result += ray.energy * shade(&ray, hit);
+		if !any(ray.energy != vec3<f32>(0.0))
+		{
+			break;
+		}
+    }
 
-    let clip = vec4<f32>(ndc, 0.0, 1.0);
-    let world = config.world_from_clip * clip;
-    let world_pos = world.xyz / world.w;
-    let dir = normalize(world_pos - config.world_position);
+    // let clip = vec4<f32>(ndc, 0.0, 1.0);
+    // let world = config.world_from_clip * clip;
+    // let world_pos = world.xyz / world.w;
+    // let dir = normalize(world_pos - config.world_position);
 
     // let color = vec4<f32>((ray.direction * 0.5) + vec3<f32>(0.5), 1.0);
 
@@ -84,7 +90,7 @@ struct Sphere
 fn createRayHit() -> RayHit {
     var hit: RayHit;
     hit.position = vec3<f32>(0.0, 0.0, 0.0);
-    hit.distance = 9999999.0f;
+    hit.distance = 999999999999.0f;
     hit.normal = vec3<f32>(0.0, 0.0, 0.0);
     hit.albedo = vec3<f32>(0.0, 0.0, 0.0);
     hit.specular = vec3<f32>(0.0, 0.0, 0.0);
@@ -141,7 +147,7 @@ fn createSphere(position: vec3<f32>, radius: f32) -> Sphere
 fn intersectSphere(ray: Ray, bestHit: ptr<function, RayHit>, sphereIndex: u32)
 {
 	//Sphere sphere = _Spheres[sphereIndex];
-	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, 0.0f), 2.0f);
+	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, 0.0f), 1.0f);
 
 
 	var d = ray.origin - sphere.position;
@@ -184,15 +190,15 @@ fn intersectGroundPlane(ray: Ray, bestHit: ptr<function,RayHit>)
 fn trace(ray: Ray) -> RayHit
 {
 	var bestHit = createRayHit();
-	intersectGroundPlane(ray, &bestHit);
 	intersectSphere(ray, &bestHit, 0);
+	intersectGroundPlane(ray, &bestHit);
 	return bestHit;
 }
 
 
 fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 {
-	if hit.distance < 9999999.0f
+	if hit.distance < 999999999999.0f
 	{
 		(*ray).origin = hit.position + hit.normal * 0.001f;
 		(*ray).direction = reflect((*ray).direction, hit.normal);

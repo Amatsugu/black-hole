@@ -174,21 +174,19 @@ pub struct TracerImageBindGroups(pub [BindGroup; 2]);
 
 fn update_tracer_uniforms(
 	mut tracer_uniforms: ResMut<TracerUniforms>,
-	rt_camera: Single<(&GlobalTransform, &Projection, &Camera), With<RTCamera>>,
+	rt_camera: Single<(&GlobalTransform, &Camera), With<RTCamera>>,
 ) {
-	let (transform, projection, cam) = rt_camera.into_inner();
+	let (transform, cam) = rt_camera.into_inner();
+
 	let view = transform.compute_matrix().inverse();
-	let clip_from_view = match projection {
-		Projection::Perspective(perspective_projection) => perspective_projection.get_clip_from_view(),
-		_ => unreachable!("This should never happen: Invalid projection type on RT Camera"),
-	};
-	let clip_from_world = clip_from_view * view;
-	let world_from_clip = clip_from_world.inverse();
-	// info!("clip_from_view = {:?}", clip_from_view);
-	// info!("world_from_clip = {:?}", world_from_clip);
+	let clip_from_view = cam.clip_from_view();
+	let world_from_clip = view * clip_from_view.inverse();
 
 	tracer_uniforms.world_from_clip = world_from_clip;
 	tracer_uniforms.world_position = transform.translation();
+
+	// info!("clip_from_view = {:?}", clip_from_view);
+	// info!("world_from_clip = {:?}", world_from_clip);
 }
 
 fn prepare_bind_groups(
