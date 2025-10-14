@@ -80,7 +80,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 		Transform::from_translation(Vec3::ZERO),
 	));
 
-	commands.spawn(Camera2d);
+	commands.spawn((Camera2d, RenderLayers::layer(0)));
 
 	commands.spawn((
 		Camera3d::default(),
@@ -90,6 +90,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 		// 	..default()
 		// }),
 		RTCamera,
+		RenderLayers::layer(1),
 		Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
 		Name::new("RT Camera"),
 	));
