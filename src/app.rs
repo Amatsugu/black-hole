@@ -82,18 +82,20 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 
 	commands.spawn((Camera2d, RenderLayers::layer(0)));
 
-	commands.spawn((
-		Camera3d::default(),
-		Camera { order: -1, ..default() },
-		// Projection::Perspective(PerspectiveProjection {
-		// 	aspect_ratio: size.x as f32 / size.y as f32,
-		// 	..default()
-		// }),
-		RTCamera,
-		RenderLayers::layer(1),
-		Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
-		Name::new("RT Camera"),
-	));
+	commands
+		.spawn((
+			Camera3d::default(),
+			// Camera { order: -1, ..default() },
+			// Projection::Perspective(PerspectiveProjection {
+			// 	aspect_ratio: size.x as f32 / size.y as f32,
+			// 	..default()
+			// }),
+			RTCamera,
+			RenderLayers::layer(1),
+			Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
+			Name::new("RT Camera"),
+		))
+		.insert(Camera { order: -1, ..default() });
 
 	commands.insert_resource(TracerRenderTextures(img0, img1));
 }
