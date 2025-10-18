@@ -7,27 +7,27 @@
 
 
 struct View {
-    view_proj: mat4x4<f32>,
-    view: mat4x4<f32>,
-    projection: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    inv_view: mat4x4<f32>, // equiv to Unity's _CameraToWorld
-    inv_projection: mat4x4<f32>, // equic to Unity's _CameraInverseProjection
+	view_proj: mat4x4<f32>,
+	view: mat4x4<f32>,
+	projection: mat4x4<f32>,
+	inv_view_proj: mat4x4<f32>,
+	inv_view: mat4x4<f32>, // equiv to Unity's _CameraToWorld
+	inv_projection: mat4x4<f32>, // equic to Unity's _CameraInverseProjection
 };
 
 struct TracerUniforms {
-    sky_color: vec4<f32>,
-    world_from_clip: mat4x4<f32>,
-    world_position: vec3<f32>,
+	sky_color: vec4<f32>,
+	world_from_clip: mat4x4<f32>,
+	world_position: vec3<f32>,
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
-    let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
+	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
-    let color = vec4(0.0);
+	let color = vec4(0.0);
 
-    textureStore(output, location, color);
+	textureStore(output, location, color);
 }
 
 
@@ -39,35 +39,37 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let loc = vec2<f32>(f32(invocation_id.x), f32(invocation_id.y)) / vec2<f32>(size.xy);
 	let ndc  = loc * 2.0f - 1.0f;
 
-    var ray = createCameraRay2(ndc);
-    var result = vec3<f32>(0.0);
+	var ray = createCameraRay2(ndc);
+	var result = vec3<f32>(0.0);
 
-    for (var i: i32 = 0; i < 8; i++){
-	    var hit = trace(ray);
-	    result += ray.energy * shade(&ray, hit);
+	for (var i: i32 = 0; i < 1; i++){
+		var hit = trace(ray);
+		result += ray.energy * shade(&ray, hit);
 		if !any(ray.energy != vec3<f32>(0.0))
 		{
 			break;
 		}
-    }
+	}
 
-    // let clip = vec4<f32>(ndc, 0.0, 1.0);
-    // let world = config.world_from_clip * clip;
-    // let world_pos = world.xyz / world.w;
-    // let dir = normalize(world_pos - config.world_position);
+	let clip = vec4<f32>(ndc, 0.0, 1.0);
+	let world = config.world_from_clip * clip;
+	let world_pos = world.xyz / world.w;
+	let dir = normalize(world_pos - config.world_position);
 
-    // let color = vec4<f32>((ray.direction * 0.5) + vec3<f32>(0.5), 1.0);
+	let color = vec4<f32>((ray.direction * 0.1), 1.0);
+	// let color = vec4<f32>(ray.direction, 1.0);
+	// let color = vec4<f32>((ray.direction * 0.1) + vec3<f32>(0.5), 1.0);
 
-    let color = vec4<f32>(result, 1.0);
-    let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
+	// let color = vec4<f32>(result, 1.0);
+	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
-    textureStore(output, location, color);
+	textureStore(output, location, color);
 }
 
 struct Ray {
-    origin: vec3<f32>,
-    direction: vec3<f32>,
-    energy: vec3<f32>,
+	origin: vec3<f32>,
+	direction: vec3<f32>,
+	energy: vec3<f32>,
 }
 
 
@@ -88,13 +90,13 @@ struct Sphere
 }
 
 fn createRayHit() -> RayHit {
-    var hit: RayHit;
-    hit.position = vec3<f32>(0.0, 0.0, 0.0);
-    hit.distance = 999999999999.0f;
-    hit.normal = vec3<f32>(0.0, 0.0, 0.0);
-    hit.albedo = vec3<f32>(0.0, 0.0, 0.0);
-    hit.specular = vec3<f32>(0.0, 0.0, 0.0);
-    return hit;
+	var hit: RayHit;
+	hit.position = vec3<f32>(0.0, 0.0, 0.0);
+	hit.distance = -999999999.0f;
+	hit.normal = vec3<f32>(0.0, 0.0, 0.0);
+	hit.albedo = vec3<f32>(0.0, 0.0, 0.0);
+	hit.specular = vec3<f32>(0.0, 0.0, 0.0);
+	return hit;
 }
 
 fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
@@ -108,30 +110,30 @@ fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 
 fn createCameraRay(ndc: vec2<f32>) -> Ray {
 
-    let target_point = config.world_from_clip * vec4<f32>(ndc, 0.0, 1.0);
-    let direction_point = target_point.xyz / target_point.w;
-    let direction = normalize(direction_point - config.world_position);
+	let target_point = config.world_from_clip * vec4<f32>(ndc, 0.0, 1.0);
+	let direction_point = target_point.xyz / target_point.w;
+	let direction = normalize(direction_point - config.world_position);
 
-    return createRay(config.world_position, direction);
+	return createRay(config.world_position, direction);
 }
 
 fn createCameraRay2(ndc: vec2<f32>) -> Ray {
-    // clip points at near and far
-    let near_clip = vec4<f32>(ndc, 0.0, 1.0);
-    let far_clip  = vec4<f32>(ndc, 1.0, 1.0);
+	// clip points at near and far
+	let near_clip = vec4<f32>(ndc, 0.0, 1.0);
+	let far_clip  = vec4<f32>(ndc, 1.0, 1.0);
 
-    // project into world space
-    let near_world4 = config.world_from_clip * near_clip;
-    let far_world4  = config.world_from_clip * far_clip;
+	// project into world space
+	let near_world4 = config.world_from_clip * near_clip;
+	let far_world4  = config.world_from_clip * far_clip;
 
-    let near_world = near_world4.xyz / near_world4.w;
-    let far_world  = far_world4.xyz / far_world4.w;
+	let near_world = near_world4.xyz / near_world4.w;
+	let far_world  = far_world4.xyz / far_world4.w;
 
-    // ray starts at near plane, points toward far plane
-    let origin = near_world;
-    let direction = normalize(far_world - near_world);
+	// ray starts at near plane, points toward far plane
+	let origin = near_world + config.world_position;
+	let direction = normalize(origin - near_world);
 
-    return createRay(origin, direction);
+	return createRay(origin, direction);
 }
 
 fn createSphere(position: vec3<f32>, radius: f32) -> Sphere
@@ -147,7 +149,7 @@ fn createSphere(position: vec3<f32>, radius: f32) -> Sphere
 fn intersectSphere(ray: Ray, bestHit: ptr<function, RayHit>, sphereIndex: u32)
 {
 	//Sphere sphere = _Spheres[sphereIndex];
-	var sphere = createSphere(vec3<f32>(0.0f, 0.0f, 0.0f), 1.0f);
+	var sphere = createSphere(vec3<f32>(0.0f, 2.0f, 0.0f), 2.0f);
 
 
 	var d = ray.origin - sphere.position;
@@ -198,7 +200,7 @@ fn trace(ray: Ray) -> RayHit
 
 fn shade(ray: ptr<function, Ray>, hit: RayHit) -> vec3<f32>
 {
-	if hit.distance < 999999999999.0f
+	if hit.distance > -999999999.0f
 	{
 		(*ray).origin = hit.position + hit.normal * 0.001f;
 		(*ray).direction = reflect((*ray).direction, hit.normal);

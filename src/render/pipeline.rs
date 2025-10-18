@@ -178,9 +178,9 @@ fn update_tracer_uniforms(
 ) {
 	let (transform, cam) = rt_camera.into_inner();
 
-	let view = transform.compute_matrix().inverse();
 	let clip_from_view = cam.clip_from_view();
-	let world_from_clip = view * clip_from_view.inverse();
+	let world_from_clip = clip_from_view.inverse() * transform.compute_matrix().inverse();
+	// cam.ndc_to_world(camera_transform, ndc)
 
 	tracer_uniforms.world_from_clip = world_from_clip;
 	tracer_uniforms.world_position = transform.translation();
