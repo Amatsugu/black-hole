@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::render_resource::encase::private::ShaderType};
+use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct RTCamera;

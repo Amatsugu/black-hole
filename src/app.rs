@@ -36,7 +36,12 @@ impl Plugin for Blackhole {
 	}
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Single<&Window, With<PrimaryWindow>>) {
+fn setup(
+	mut commands: Commands,
+	mut images: ResMut<Assets<Image>>,
+	window: Single<&Window, With<PrimaryWindow>>,
+	asset_server: Res<AssetServer>,
+) {
 	commands.spawn((
 		PerfUiRoot::default(),
 		PerfUiEntryFPS::default(),
@@ -70,6 +75,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 	let img0 = images.add(image.clone());
 	let img1 = images.add(image);
 
+	let skybox = asset_server.load("sky-test.png");
 	commands.spawn((
 		Name::new("Render Sprite"),
 		Sprite {
@@ -97,5 +103,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, window: Sing
 		))
 		.insert(Camera { order: -1, ..default() });
 
-	commands.insert_resource(TracerRenderTextures(img0, img1));
+	commands.insert_resource(TracerRenderTextures {
+		main: img0,
+		secondary: img1,
+		skybox,
+	});
 }

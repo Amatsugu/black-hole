@@ -4,15 +4,14 @@ use bevy::{
 	prelude::*,
 	render::{
 		Render, RenderApp, RenderSet,
-		camera::CameraProjection,
 		extract_resource::{ExtractResource, ExtractResourcePlugin},
 		render_asset::RenderAssets,
 		render_graph::{RenderGraph, RenderLabel},
 		render_resource::{
 			BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, CachedComputePipelineId,
-			ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType, StorageTextureAccess, TextureFormat,
-			UniformBuffer,
-			binding_types::{texture_storage_2d, uniform_buffer},
+			ComputePipelineDescriptor, PipelineCache, SamplerBindingType, ShaderStages, ShaderType,
+			StorageTextureAccess, TextureFormat, TextureSampleType, UniformBuffer,
+			binding_types::{sampler, texture_cube, texture_storage_2d, uniform_buffer},
 		},
 		renderer::{RenderDevice, RenderQueue},
 		texture::GpuImage,
@@ -26,7 +25,11 @@ pub struct TracerLabel;
 
 #[derive(Resource, Reflect, ExtractResource, Clone)]
 #[reflect(Resource)]
-pub struct TracerRenderTextures(pub Handle<Image>, pub Handle<Image>);
+pub struct TracerRenderTextures {
+	pub main: Handle<Image>,
+	pub secondary: Handle<Image>,
+	pub skybox: Handle<Image>,
+}
 
 #[derive(Resource, Clone, ExtractResource, ShaderType, Default)]
 pub struct TracerUniforms {
@@ -64,10 +67,10 @@ impl Plugin for TracerPipelinePlugin {
 }
 
 fn switch_textures(images: Res<TracerRenderTextures>, mut sprite: Single<&mut Sprite>) {
-	if sprite.image == images.0 {
-		sprite.image = images.1.clone();
+	if sprite.image == images.main {
+		sprite.image = images.secondary.clone();
 	} else {
-		sprite.image = images.0.clone();
+		sprite.image = images.main.clone();
 	}
 }
 
@@ -90,6 +93,8 @@ impl FromWorld for TracerPipeline {
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 					texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 					uniform_buffer::<TracerUniforms>(false),
+					texture_cube(TextureSampleType::Float { filterable: true }),
+					sampler(SamplerBindingType::Filtering),
 				),
 			),
 		);
@@ -138,6 +143,8 @@ fn init_pipeline(
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
 				texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
 				uniform_buffer::<TracerUniforms>(false),
+				texture_cube(TextureSampleType::Float { filterable: true }),
+				sampler(SamplerBindingType::Filtering),
 			),
 		),
 	);
@@ -177,21 +184,12 @@ fn update_tracer_uniforms(
 	rt_camera: Single<(&GlobalTransform, &Camera), With<RTCamera>>,
 ) {
 	let (transform, cam) = rt_camera.into_inner();
-	/*
-
-	   let clip_from_view = cam.clip_from_view();
-	   let world_from_clip = clip_from_view.inverse() * transform.compute_matrix().inverse();
-	*/
 
 	let clip_from_view = cam.clip_from_view();
 	let world_from_clip = transform.compute_matrix() * clip_from_view.inverse();
-	// cam.ndc_to_world(camera_transform, ndc)
 
 	tracer_uniforms.world_from_clip = world_from_clip;
 	tracer_uniforms.world_position = transform.translation();
-
-	// info!("clip_from_view = {:?}", clip_from_view);
-	// info!("world_from_clip = {:?}", world_from_clip);
 }
 
 fn prepare_bind_groups(
@@ -203,8 +201,9 @@ fn prepare_bind_groups(
 	render_device: Res<RenderDevice>,
 	queue: Res<RenderQueue>,
 ) {
-	let view_a = gpu_images.get(&tracer_images.0).unwrap();
-	let view_b = gpu_images.get(&tracer_images.1).unwrap();
+	let view_a = gpu_images.get(&tracer_images.main).unwrap();
+	let view_b = gpu_images.get(&tracer_images.secondary).unwrap();
+	let skybox = gpu_images.get(&tracer_images.skybox).unwrap();
 
 	// Uniform buffer is used here to demonstrate how to set up a uniform in a compute shader
 	// Alternatives such as storage buffers or push constants may be more suitable for your use case
@@ -214,12 +213,24 @@ fn prepare_bind_groups(
 	let bind_group_0 = render_device.create_bind_group(
 		None,
 		&pipeline.texture_bind_group_layout,
-		&BindGroupEntries::sequential((&view_a.texture_view, &view_b.texture_view, &uniform_buffer)),
+		&BindGroupEntries::sequential((
+			&view_a.texture_view,
+			&view_b.texture_view,
+			&uniform_buffer,
+			&skybox.texture_view,
+			&skybox.sampler,
+		)),
 	);
 	let bind_group_1 = render_device.create_bind_group(
 		None,
 		&pipeline.texture_bind_group_layout,
-		&BindGroupEntries::sequential((&view_b.texture_view, &view_a.texture_view, &uniform_buffer)),
+		&BindGroupEntries::sequential((
+			&view_b.texture_view,
+			&view_a.texture_view,
+			&uniform_buffer,
+			&skybox.texture_view,
+			&skybox.sampler,
+		)),
 	);
 	commands.insert_resource(TracerImageBindGroups([bind_group_0, bind_group_1]));
 }

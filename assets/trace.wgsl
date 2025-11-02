@@ -4,7 +4,8 @@
 @group(0) @binding(1) var output: texture_storage_2d<rgba32float, write>;
 
 @group(0) @binding(2) var<uniform> config: TracerUniforms;
-
+@group(0) @binding(3) var skybox_texture: texture_cube<f32>;
+@group(0) @binding(4) var skybox_sampler: sampler;
 
 struct View {
 	view_proj: mat4x4<f32>,
