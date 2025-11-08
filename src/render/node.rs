@@ -75,7 +75,11 @@ impl render_graph::Node for TracerNode {
 		render_context: &mut RenderContext,
 		world: &World,
 	) -> Result<(), render_graph::NodeRunError> {
-		let bind_groups = &world.resource::<TracerImageBindGroups>().0;
+		let bind_groups_res = world.get_resource::<TracerImageBindGroups>();
+		if bind_groups_res.is_none() {
+			return Ok(());
+		}
+		let bind_groups = &bind_groups_res.unwrap().0;
 		let pipeline_cache = world.resource::<PipelineCache>();
 		let pipeline = world.resource::<TracerPipeline>();
 

@@ -18,7 +18,7 @@ use bevy::{
 	},
 };
 
-use crate::{SHADER_ASSET_PATH, components::rt::RTCamera, render::node::TracerNode};
+use crate::{SHADER_ASSET_PATH, app::AssetLoad, components::rt::RTCamera, render::node::TracerNode};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct TracerLabel;
@@ -47,9 +47,9 @@ impl Plugin for TracerPipelinePlugin {
 			ExtractResourcePlugin::<TracerUniforms>::default(),
 		));
 		app.init_resource::<TracerUniforms>()
-			.add_systems(Update, switch_textures);
+			.add_systems(Update, switch_textures.run_if(in_state(AssetLoad::Ready)));
 
-		app.add_systems(First, update_tracer_uniforms);
+		app.add_systems(First, update_tracer_uniforms.run_if(in_state(AssetLoad::Ready)));
 		let render_app = app.sub_app_mut(RenderApp);
 
 		// render_app.add_systems(Startup, init_pipeline);
@@ -203,7 +203,12 @@ fn prepare_bind_groups(
 ) {
 	let view_a = gpu_images.get(&tracer_images.main).unwrap();
 	let view_b = gpu_images.get(&tracer_images.secondary).unwrap();
-	let skybox = gpu_images.get(&tracer_images.skybox).unwrap();
+	let skybox_image = gpu_images.get(&tracer_images.skybox);
+	if skybox_image.is_none() {
+		error!("skybox image is not yet loaded");
+		return;
+	}
+	let skybox = skybox_image.unwrap();
 
 	// Uniform buffer is used here to demonstrate how to set up a uniform in a compute shader
 	// Alternatives such as storage buffers or push constants may be more suitable for your use case

@@ -1,9 +1,11 @@
+use std::default;
+
 use bevy::{
 	asset::RenderAssetUsages,
-	math::VectorSpace,
+	image::ImageSamplerDescriptor,
 	prelude::*,
 	render::{
-		render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+		render_resource::{Extent3d, SamplerDescriptor, TextureDimension, TextureFormat, TextureUsages},
 		view::RenderLayers,
 	},
 	window::PrimaryWindow,
@@ -17,11 +19,24 @@ use crate::{
 
 pub struct Blackhole;
 
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum AssetLoad {
+	#[default]
+	Pending,
+	Loading,
+	Init,
+	Ready,
+}
+
 impl Plugin for Blackhole {
 	fn build(&self, app: &mut App) {
 		app.register_type::<TracerRenderTextures>();
 
-		app.add_systems(Startup, setup);
+		app.init_state::<AssetLoad>();
+		app.add_systems(Startup, setup)
+			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
+			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
+			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
 		app.add_plugins(TracerPipelinePlugin);
 		app.insert_resource(TracerUniforms {
 			sky_color: LinearRgba::rgb(0.1, 0.0, 0.01),
@@ -41,6 +56,7 @@ fn setup(
 	mut images: ResMut<Assets<Image>>,
 	window: Single<&Window, With<PrimaryWindow>>,
 	asset_server: Res<AssetServer>,
+	mut load_state: ResMut<NextState<AssetLoad>>,
 ) {
 	commands.spawn((
 		PerfUiRoot::default(),
@@ -108,4 +124,27 @@ fn setup(
 		secondary: img1,
 		skybox,
 	});
+
+	load_state.set(AssetLoad::Loading);
+}
+
+fn asset_load_check(
+	mut load_state: ResMut<NextState<AssetLoad>>,
+	tracer_textures: Res<TracerRenderTextures>,
+	asset_server: Res<AssetServer>,
+) {
+	let skybox_load_state = asset_server.load_state(tracer_textures.skybox.id());
+	if skybox_load_state.is_loaded() {
+		load_state.set(AssetLoad::Init);
+		info!("Assets Loaded");
+	}
+}
+
+fn prepare_skybox(tracer_textures: Res<TracerRenderTextures>, image_assets: Res<Assets<Image>>) {
+	let sb = image_assets.get(tracer_textures.skybox.id()).unwrap();
+}
+
+fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>) {
+	load_state.set(AssetLoad::Ready);
+	info!("Assets Initialized");
 }
