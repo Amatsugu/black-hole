@@ -203,12 +203,7 @@ fn prepare_bind_groups(
 ) {
 	let view_a = gpu_images.get(&tracer_images.main).unwrap();
 	let view_b = gpu_images.get(&tracer_images.secondary).unwrap();
-	let skybox_image = gpu_images.get(&tracer_images.skybox);
-	if skybox_image.is_none() {
-		error!("skybox image is not yet loaded");
-		return;
-	}
-	let skybox = skybox_image.unwrap();
+	let skybox = gpu_images.get(&tracer_images.skybox).unwrap();
 
 	// Uniform buffer is used here to demonstrate how to set up a uniform in a compute shader
 	// Alternatives such as storage buffers or push constants may be more suitable for your use case

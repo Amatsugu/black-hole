@@ -52,7 +52,7 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	// 	}
 	// }
 
-	let hit_data = trace_test(ray);
+	let hit_data = trace(ray);
 
 
     var final_color = hit_data.color;
@@ -210,7 +210,7 @@ fn distance_field(p: vec3<f32>) -> f32 {
     return d;
 }
 
-fn trace_test(ray: Ray) -> Hit {
+fn trace(ray: Ray) -> Hit {
     var total_distance: f32 = 0.0;
     let max_distance: f32 = 100.0;
     let min_hit_distance: f32 = 0.001;

@@ -1,11 +1,8 @@
-use std::default;
-
 use bevy::{
 	asset::RenderAssetUsages,
-	image::ImageSamplerDescriptor,
 	prelude::*,
 	render::{
-		render_resource::{Extent3d, SamplerDescriptor, TextureDimension, TextureFormat, TextureUsages},
+		render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages, TextureViewDimension},
 		view::RenderLayers,
 	},
 	window::PrimaryWindow,
@@ -27,6 +24,9 @@ pub enum AssetLoad {
 	Init,
 	Ready,
 }
+
+#[derive(Debug, Resource)]
+struct SkyboxAsset(Handle<Image>);
 
 impl Plugin for Blackhole {
 	fn build(&self, app: &mut App) {
@@ -88,14 +88,28 @@ fn setup(
 		| TextureUsages::COPY_DST
 		| TextureUsages::RENDER_ATTACHMENT;
 
-	let img0 = images.add(image.clone());
-	let img1 = images.add(image);
+	let render0 = images.add(image.clone());
+	let render1 = images.add(image);
 
-	let skybox = asset_server.load("sky-test.png");
+	let mut skybox_render_image = Image::new_fill(
+		Extent3d {
+			width: 1024,
+			height: 768,
+			..Default::default()
+		},
+		TextureDimension::D3,
+		&[255; PIXEL_SIZE],
+		PIXEL_FORMAT,
+		RenderAssetUsages::RENDER_WORLD,
+	);
+	skybox_render_image.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
+	let skybox_render_image_handle = images.add(skybox_render_image);
+
+	let skybox_asset = asset_server.load("sky-test.png");
 	commands.spawn((
 		Name::new("Render Sprite"),
 		Sprite {
-			image: img0.clone(),
+			image: render0.clone(),
 			custom_size: Some(size.as_vec2()),
 			..default()
 		},
@@ -120,28 +134,41 @@ fn setup(
 		.insert(Camera { order: -1, ..default() });
 
 	commands.insert_resource(TracerRenderTextures {
-		main: img0,
-		secondary: img1,
-		skybox,
+		main: render0,
+		secondary: render1,
+		skybox: skybox_render_image_handle,
 	});
+	commands.insert_resource(SkyboxAsset(skybox_asset));
 
 	load_state.set(AssetLoad::Loading);
 }
 
 fn asset_load_check(
 	mut load_state: ResMut<NextState<AssetLoad>>,
-	tracer_textures: Res<TracerRenderTextures>,
+	skybox: Res<SkyboxAsset>,
 	asset_server: Res<AssetServer>,
 ) {
-	let skybox_load_state = asset_server.load_state(tracer_textures.skybox.id());
+	let skybox_load_state = asset_server.load_state(skybox.0.id());
 	if skybox_load_state.is_loaded() {
 		load_state.set(AssetLoad::Init);
 		info!("Assets Loaded");
 	}
 }
 
-fn prepare_skybox(tracer_textures: Res<TracerRenderTextures>, image_assets: Res<Assets<Image>>) {
-	let sb = image_assets.get(tracer_textures.skybox.id()).unwrap();
+fn prepare_skybox(
+	tracer_textures: Res<TracerRenderTextures>,
+	skybox: Res<SkyboxAsset>,
+	mut image_assets: ResMut<Assets<Image>>,
+) {
+	let mut skybox_image = image_assets
+		.get(skybox.0.id())
+		.expect("Skybox asset image does not exist")
+		.clone();
+	skybox_image.reinterpret_stacked_2d_as_array(skybox_image.height() / skybox_image.width());
+	let mut desc = skybox_image.texture_view_descriptor.unwrap();
+	desc.dimension = Some(TextureViewDimension::Cube);
+	skybox_image.texture_view_descriptor = Some(desc);
+	image_assets.insert(tracer_textures.skybox.id(), skybox_image.clone());
 }
 
 fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>) {
