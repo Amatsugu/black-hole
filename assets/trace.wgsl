@@ -2,7 +2,7 @@
 
 @group(2) @binding(0) var<uniform> sky_color: vec4<f32>;
 @group(2) @binding(1) var<uniform> view: TracerView;
-@group(2) @binding(2) var skybox_texture: texture_2d<f32>;
+@group(2) @binding(2) var skybox_texture: texture_cube<f32>;
 @group(2) @binding(3) var skybox_sampler: sampler;
 
 @fragment
@@ -24,8 +24,8 @@ fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
 
    var color = vec4<f32>(final_color, 1.0);
    if hit_data.distance == 100.0 {
-   	color = sky_color;
-   	// color = textureSampleLevel(skybox_texture, skybox_sampler, vec3<f32>(0.0, 0.0, 1.0), 0, 0u);
+   	// color = sky_color;
+   	color = textureSample(skybox_texture, skybox_sampler, vec3<f32>(0.0, 0.0, 1.0));
    }
     return color;
 }

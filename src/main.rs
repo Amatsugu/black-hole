@@ -1,6 +1,6 @@
 use app::Blackhole;
-use bevy::prelude::*;
 use bevy::window::PresentMode;
+use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 mod app;
@@ -19,7 +19,7 @@ fn main() {
 					primary_window: Some(Window {
 						title: NAME.into(),
 						name: Some(NAME.into()),
-						resolution: (1920., 1080.).into(),
+						resolution: WindowResolution::new(1920, 1080),
 						present_mode: PresentMode::AutoNoVsync,
 						..default()
 					}),
@@ -30,9 +30,7 @@ fn main() {
 					watch_for_changes_override: Some(true),
 					..Default::default()
 				}),
-			EguiPlugin {
-				enable_multipass_for_primary_context: true,
-			},
+			EguiPlugin::default(),
 			WorldInspectorPlugin::new(),
 			Blackhole,
 		))

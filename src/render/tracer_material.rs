@@ -2,7 +2,7 @@ use bevy::{
 	prelude::*,
 	reflect::Reflect,
 	render::render_resource::{AsBindGroup, ShaderType},
-	sprite::Material2d,
+	sprite_render::Material2d,
 };
 
 use crate::SHADER_ASSET_PATH;
@@ -25,11 +25,7 @@ pub struct TracerView {
 }
 
 impl Material2d for TracerMaterial {
-	fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
+	fn fragment_shader() -> bevy::shader::ShaderRef {
 		SHADER_ASSET_PATH.into()
-	}
-
-	fn alpha_mode(&self) -> bevy::sprite::AlphaMode2d {
-		bevy::sprite::AlphaMode2d::Opaque
 	}
 }

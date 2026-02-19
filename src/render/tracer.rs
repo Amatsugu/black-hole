@@ -1,4 +1,4 @@
-use bevy::{prelude::*, sprite::Material2dPlugin};
+use bevy::{prelude::*, sprite_render::Material2dPlugin};
 
 use crate::{
 	app::AssetLoad,
@@ -23,7 +23,7 @@ fn update_tracer_uniforms(
 	let (transform, cam) = rt_camera.into_inner();
 
 	let clip_from_view = cam.clip_from_view();
-	let world_from_clip = transform.compute_matrix() * clip_from_view.inverse();
+	let world_from_clip = transform.to_matrix() * clip_from_view.inverse();
 
 	let mat = materials
 		.get_mut(display.0.id())

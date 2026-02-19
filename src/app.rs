@@ -1,15 +1,8 @@
 use bevy::{
-	asset::RenderAssetUsages,
+	camera::visibility::RenderLayers,
 	prelude::*,
-	render::{
-		render_resource::{
-			Extent3d, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension,
-		},
-		view::RenderLayers,
-	},
-	window::PrimaryWindow,
+	render::render_resource::{TextureViewDescriptor, TextureViewDimension},
 };
-use iyes_perf_ui::prelude::*;
 
 use crate::{
 	components::rt::{RTCamera, RTDisplay},
@@ -35,15 +28,9 @@ impl Plugin for Blackhole {
 		app.init_state::<AssetLoad>();
 		app.add_systems(Startup, setup)
 			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
-			// .add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
+			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
 			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
 		app.add_plugins(TracerPlugin);
-
-		//Perf UI
-		app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-			.add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
-			.add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
-			.add_plugins(PerfUiPlugin);
 	}
 }
 
@@ -54,20 +41,11 @@ fn setup(
 	mut materials: ResMut<Assets<TracerMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
-	commands.spawn((
-		PerfUiRoot::default(),
-		PerfUiEntryFPS::default(),
-		PerfUiEntryFPSWorst::default(),
-		PerfUiEntryFrameTime::default(),
-		PerfUiEntryFrameTimeWorst::default(),
-	));
-
 	let skybox_asset = asset_server.load("sky-array.png");
 	commands.spawn((
 		Name::new("Render Display"),
 		MeshMaterial2d(materials.add(TracerMaterial {
 			sky_color: LinearRgba::rgb(0.1, 0.0, 0.01),
-			skybox: Some(skybox_asset.clone()),
 			..default()
 		})),
 		RTDisplay,
@@ -104,17 +82,27 @@ fn asset_load_check(
 	}
 }
 
-fn prepare_skybox(skybox: Res<SkyboxAsset>, mut image_assets: ResMut<Assets<Image>>) {
+fn prepare_skybox(
+	skybox: Res<SkyboxAsset>,
+	mut image_assets: ResMut<Assets<Image>>,
+	display: Single<&MeshMaterial2d<TracerMaterial>, With<RTDisplay>>,
+	mut materials: ResMut<Assets<TracerMaterial>>,
+) {
 	let mut skybox_image = image_assets
-		.get(skybox.0.id())
+		.get_mut(skybox.0.id())
 		.expect("Skybox asset image does not exist")
 		.clone();
-	skybox_image.reinterpret_stacked_2d_as_array(skybox_image.height() / skybox_image.width());
+	skybox_image
+		.reinterpret_stacked_2d_as_array(skybox_image.height() / skybox_image.width())
+		.expect("Failed to re-interpret skybox");
 	skybox_image.texture_view_descriptor = Some(TextureViewDescriptor {
 		dimension: Some(TextureViewDimension::Cube),
 		..default()
 	});
-	image_assets.insert(skybox.0.id(), skybox_image);
+	let mat = materials
+		.get_mut(display.0.id())
+		.expect("Tracer Materials doesn't exist");
+	mat.skybox = Some(skybox.0.clone());
 }
 
 fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>) {
