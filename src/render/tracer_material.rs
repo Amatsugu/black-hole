@@ -16,6 +16,8 @@ pub struct TracerMaterial {
 	#[texture(2)]
 	#[sampler(3)]
 	pub skybox: Option<Handle<Image>>,
+	// #[uniform(4)]
+	// pub objects: TracerObjects,
 }
 
 #[derive(Debug, ShaderType, Clone, Reflect, Default)]
@@ -29,3 +31,17 @@ impl Material2d for TracerMaterial {
 		SHADER_ASSET_PATH.into()
 	}
 }
+
+/*
+#[derive(Debug, ShaderType, Clone, Reflect, Default)]
+pub struct TracerObjects {
+	pub objects: Vec<Object>,
+}
+#[derive(Debug, ShaderType, Clone, Reflect, Default)]
+pub struct Object {
+	pub object_type: u32,
+	pub position: Vec3,
+	pub rotation: Vec4,
+	pub scale: Vec3,
+}
+*/

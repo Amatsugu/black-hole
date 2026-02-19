@@ -3,7 +3,10 @@ use bevy::{prelude::*, sprite_render::Material2dPlugin};
 use crate::{
 	app::AssetLoad,
 	components::rt::{RTCamera, RTDisplay},
-	render::tracer_material::{TracerMaterial, TracerView},
+	render::{
+		// pipeline::TracerPipelinePlugin,
+		tracer_material::{TracerMaterial, TracerView},
+	},
 };
 
 pub struct TracerPlugin;
