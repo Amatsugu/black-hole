@@ -2,7 +2,9 @@ use bevy::{
 	asset::RenderAssetUsages,
 	prelude::*,
 	render::{
-		render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages, TextureViewDimension},
+		render_resource::{
+			Extent3d, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension,
+		},
 		view::RenderLayers,
 	},
 	window::PrimaryWindow,
@@ -93,19 +95,24 @@ fn setup(
 
 	let mut skybox_render_image = Image::new_fill(
 		Extent3d {
-			width: 1024,
-			height: 768,
+			width: 256,
+			height: 1536,
 			..Default::default()
 		},
-		TextureDimension::D3,
+		TextureDimension::D2,
 		&[255; PIXEL_SIZE],
 		PIXEL_FORMAT,
 		RenderAssetUsages::RENDER_WORLD,
 	);
+	skybox_render_image.reinterpret_stacked_2d_as_array(6);
 	skybox_render_image.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
+	skybox_render_image.texture_view_descriptor = Some(TextureViewDescriptor {
+		dimension: Some(TextureViewDimension::Cube),
+		..default()
+	});
 	let skybox_render_image_handle = images.add(skybox_render_image);
 
-	let skybox_asset = asset_server.load("sky-test.png");
+	let skybox_asset = asset_server.load("sky-array.png");
 	commands.spawn((
 		Name::new("Render Sprite"),
 		Sprite {
@@ -165,9 +172,10 @@ fn prepare_skybox(
 		.expect("Skybox asset image does not exist")
 		.clone();
 	skybox_image.reinterpret_stacked_2d_as_array(skybox_image.height() / skybox_image.width());
-	let mut desc = skybox_image.texture_view_descriptor.unwrap();
-	desc.dimension = Some(TextureViewDimension::Cube);
-	skybox_image.texture_view_descriptor = Some(desc);
+	skybox_image.texture_view_descriptor = Some(TextureViewDescriptor {
+		dimension: Some(TextureViewDimension::Cube),
+		..default()
+	});
 	image_assets.insert(tracer_textures.skybox.id(), skybox_image.clone());
 }
 

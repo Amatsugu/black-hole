@@ -36,22 +36,24 @@ impl render_graph::Node for TracerNode {
 		// if the corresponding pipeline has loaded, transition to the next stage
 		match self.state {
 			TracerState::Loading => {
-				let shader_loaded = match pipeline_cache.get_compute_pipeline_state(pipeline.init_pipeline) {
-					CachedPipelineState::Ok(_) => true,
+				match pipeline_cache.get_compute_pipeline_state(pipeline.init_pipeline) {
+					CachedPipelineState::Ok(_) => {
+						self.state = TracerState::Init;
+					}
 					// If the shader hasn't loaded yet, just wait.
-					CachedPipelineState::Err(PipelineCacheError::ShaderNotLoaded(_)) => false,
+					CachedPipelineState::Err(PipelineCacheError::ShaderNotLoaded(_)) => (),
 					CachedPipelineState::Err(err) => {
 						panic!("Initializing assets/{SHADER_ASSET_PATH}:\n{err}")
 					}
-					_ => false,
+					_ => (),
 				};
 
-				let tex = world.resource::<TracerRenderTextures>();
-				let asset_server = world.resource::<AssetServer>();
-				let load_state = asset_server.get_load_state(tex.skybox.id()).unwrap();
-				if load_state.is_loaded() && shader_loaded {
-					self.state = TracerState::Init;
-				}
+				// let tex = world.resource::<TracerRenderTextures>();
+				// let asset_server = world.resource::<AssetServer>();
+				// let load_state = asset_server.get_load_state(tex.skybox.id()).expect();
+				// if load_state.is_loaded() && shader_loaded {
+				// 	self.state = TracerState::Init;
+				// }
 			}
 			TracerState::Init => {
 				if let CachedPipelineState::Ok(_) = pipeline_cache.get_compute_pipeline_state(pipeline.update_pipeline)

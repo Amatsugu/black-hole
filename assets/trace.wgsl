@@ -41,27 +41,21 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let ndc  = loc * 2.0f - 1.0f;
 
 	var ray = createCameraRay(ndc);
-	// var result = vec3<f32>(0.0);
-
-	// for (var i: i32 = 0; i < 1; i++){
-	// 	var hit = trace(ray);
-	// 	result += ray.energy * shade(&ray, hit);
-	// 	if !any(ray.energy != vec3<f32>(0.0))
-	// 	{
-	// 		break;
-	// 	}
-	// }
 
 	let hit_data = trace(ray);
 
 
     var final_color = hit_data.color;
 
-    // Simple fog/distance visualization
-    let distance_factor = clamp(hit_data.distance / 50.0, 0.0, 1.0);
-    final_color = mix(final_color * (f32(hit_data.steps)/ 100.0), vec3<f32>(0.1), distance_factor); // Fog: mix object color with dark gray
+    let step_factor = f32(hit_data.steps)/100.0;
+    final_color = final_color * step_factor;
 
-	let color = vec4<f32>(final_color, 1.0);
+
+	var color = vec4<f32>(final_color, 1.0);
+    if hit_data.distance == 100.0 {
+    	color = config.sky_color;
+    	// color = textureSampleLevel(skybox_texture, skybox_sampler, vec3<f32>(0.0, 0.0, 1.0), 0, 0u);
+    }
 	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
 	textureStore(output, location, color);
@@ -139,25 +133,6 @@ struct Ray {
 	energy: vec3<f32>,
 }
 
-
-struct RayHit {
-	distance: f32,
-	position: vec3<f32>,
-	normal: vec3<f32>,
-	albedo: vec3<f32>,
-	specular: vec3<f32>
-}
-
-fn createRayHit() -> RayHit {
-	var hit: RayHit;
-	hit.position = vec3<f32>(0.0, 0.0, 0.0);
-	hit.distance = -999999999.0f;
-	hit.normal = vec3<f32>(0.0, 0.0, 0.0);
-	hit.albedo = vec3<f32>(0.0, 0.0, 0.0);
-	hit.specular = vec3<f32>(0.0, 0.0, 0.0);
-	return hit;
-}
-
 fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 {
 	var ray: Ray;
@@ -197,6 +172,7 @@ struct Hit {
     hit_pos: vec3<f32>,
     normal: vec3<f32>,
     color: vec3<f32>,
+    direction: vec3<f32>,
     steps: i32,
 };
 
@@ -223,7 +199,7 @@ fn trace(ray: Ray) -> Hit {
         // Check for a hit
         if (distance_to_scene < min_hit_distance) {
             // A hit occurred!
-            return Hit(total_distance, current_pos, vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), i); // Return red color for now
+            return Hit(total_distance, current_pos, vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), ray.direction, i); // Return red color for now
         }
 
         // Check if we marched too far
@@ -236,5 +212,5 @@ fn trace(ray: Ray) -> Hit {
     }
 
     // No hit found
-    return Hit(max_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), 0); // Return black for background
+    return Hit(max_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), ray.direction, max_steps); // Return black for background
 }
