@@ -1,4 +1,7 @@
 use bevy::prelude::*;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct RTCamera;
+
+#[derive(Component, Debug)]
+pub struct RTDisplay;

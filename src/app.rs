@@ -12,8 +12,8 @@ use bevy::{
 use iyes_perf_ui::prelude::*;
 
 use crate::{
-	components::rt::RTCamera,
-	render::pipeline::{TracerPipelinePlugin, TracerRenderTextures, TracerUniforms},
+	components::rt::{RTCamera, RTDisplay},
+	render::{tracer::TracerPlugin, tracer_material::TracerMaterial},
 };
 
 pub struct Blackhole;
@@ -32,18 +32,12 @@ struct SkyboxAsset(Handle<Image>);
 
 impl Plugin for Blackhole {
 	fn build(&self, app: &mut App) {
-		app.register_type::<TracerRenderTextures>();
-
 		app.init_state::<AssetLoad>();
 		app.add_systems(Startup, setup)
 			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
-			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
+			// .add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
 			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
-		app.add_plugins(TracerPipelinePlugin);
-		app.insert_resource(TracerUniforms {
-			sky_color: LinearRgba::rgb(0.1, 0.0, 0.01),
-			..default()
-		});
+		app.add_plugins(TracerPlugin);
 
 		//Perf UI
 		app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
@@ -55,10 +49,10 @@ impl Plugin for Blackhole {
 
 fn setup(
 	mut commands: Commands,
-	mut images: ResMut<Assets<Image>>,
-	window: Single<&Window, With<PrimaryWindow>>,
 	asset_server: Res<AssetServer>,
 	mut load_state: ResMut<NextState<AssetLoad>>,
+	mut materials: ResMut<Assets<TracerMaterial>>,
+	mut meshes: ResMut<Assets<Mesh>>,
 ) {
 	commands.spawn((
 		PerfUiRoot::default(),
@@ -68,58 +62,16 @@ fn setup(
 		PerfUiEntryFrameTimeWorst::default(),
 	));
 
-	let size = window.physical_size();
-
-	let extent = Extent3d {
-		width: size.x,
-		height: size.y,
-		..Default::default()
-	};
-
-	const PIXEL_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
-	const PIXEL_SIZE: usize = 16;
-	let mut image = Image::new_fill(
-		extent,
-		TextureDimension::D2,
-		&[255; PIXEL_SIZE],
-		PIXEL_FORMAT,
-		RenderAssetUsages::RENDER_WORLD,
-	);
-	image.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING
-		| TextureUsages::STORAGE_BINDING
-		| TextureUsages::COPY_DST
-		| TextureUsages::RENDER_ATTACHMENT;
-
-	let render0 = images.add(image.clone());
-	let render1 = images.add(image);
-
-	let mut skybox_render_image = Image::new_fill(
-		Extent3d {
-			width: 256,
-			height: 1536,
-			..Default::default()
-		},
-		TextureDimension::D2,
-		&[255; PIXEL_SIZE],
-		PIXEL_FORMAT,
-		RenderAssetUsages::RENDER_WORLD,
-	);
-	skybox_render_image.reinterpret_stacked_2d_as_array(6);
-	skybox_render_image.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT;
-	skybox_render_image.texture_view_descriptor = Some(TextureViewDescriptor {
-		dimension: Some(TextureViewDimension::Cube),
-		..default()
-	});
-	let skybox_render_image_handle = images.add(skybox_render_image);
-
 	let skybox_asset = asset_server.load("sky-array.png");
 	commands.spawn((
-		Name::new("Render Sprite"),
-		Sprite {
-			image: render0.clone(),
-			custom_size: Some(size.as_vec2()),
+		Name::new("Render Display"),
+		MeshMaterial2d(materials.add(TracerMaterial {
+			sky_color: LinearRgba::rgb(0.1, 0.0, 0.01),
+			skybox: Some(skybox_asset.clone()),
 			..default()
-		},
+		})),
+		RTDisplay,
+		Mesh2d(meshes.add(Rectangle::from_size(vec2(1920.0, 1080.0)))),
 		Transform::from_translation(Vec3::ZERO),
 	));
 
@@ -128,11 +80,6 @@ fn setup(
 	commands
 		.spawn((
 			Camera3d::default(),
-			// Camera { order: -1, ..default() },
-			// Projection::Perspective(PerspectiveProjection {
-			// 	aspect_ratio: size.x as f32 / size.y as f32,
-			// 	..default()
-			// }),
 			RTCamera,
 			RenderLayers::layer(1),
 			Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -140,11 +87,6 @@ fn setup(
 		))
 		.insert(Camera { order: -1, ..default() });
 
-	commands.insert_resource(TracerRenderTextures {
-		main: render0,
-		secondary: render1,
-		skybox: skybox_render_image_handle,
-	});
 	commands.insert_resource(SkyboxAsset(skybox_asset));
 
 	load_state.set(AssetLoad::Loading);
@@ -162,11 +104,7 @@ fn asset_load_check(
 	}
 }
 
-fn prepare_skybox(
-	tracer_textures: Res<TracerRenderTextures>,
-	skybox: Res<SkyboxAsset>,
-	mut image_assets: ResMut<Assets<Image>>,
-) {
+fn prepare_skybox(skybox: Res<SkyboxAsset>, mut image_assets: ResMut<Assets<Image>>) {
 	let mut skybox_image = image_assets
 		.get(skybox.0.id())
 		.expect("Skybox asset image does not exist")
@@ -176,7 +114,7 @@ fn prepare_skybox(
 		dimension: Some(TextureViewDimension::Cube),
 		..default()
 	});
-	image_assets.insert(tracer_textures.skybox.id(), skybox_image.clone());
+	image_assets.insert(skybox.0.id(), skybox_image);
 }
 
 fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>) {
