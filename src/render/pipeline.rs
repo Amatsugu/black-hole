@@ -1,29 +1,43 @@
+use std::borrow::Cow;
+
 use bevy::{
 	prelude::*,
 	render::{
 		Render, RenderApp,
-		extract_resource::{ExtractResource, ExtractResourcePlugin},
-		render_resource::ShaderType,
+		RenderSystems::PrepareBindGroups,
+		extract_resource::ExtractResourcePlugin,
+		render_asset::RenderAssets,
+		render_graph::{RenderGraph, RenderLabel},
+		render_resource::{
+			BindGroupEntries, BindGroupLayoutDescriptor, BindGroupLayoutEntries, ComputePipelineDescriptor,
+			PipelineCache, SamplerBindingType, ShaderStages, TextureSampleType, UniformBuffer,
+			binding_types::{sampler, texture_cube, uniform_buffer},
+		},
+		renderer::{RenderDevice, RenderQueue},
+		texture::GpuImage,
 	},
+};
+
+use crate::render::{
+	node::TracerNode,
+	resources::{TracerImageBindGroups, TracerPipeline, TracerRenderTextures, TracerUniforms},
 };
 
 pub struct TracerPipelinePlugin;
 
-#[derive(Resource, Clone, ExtractResource, ShaderType, Default)]
-pub struct TracerUniforms {
-	pub sky_color: LinearRgba,
-	pub world_from_clip: Mat4,
-	pub world_position: Vec3,
-}
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+pub struct TracerLabel;
 
-impl Plugin for TracerPipelinePlugin {
-	fn build(&self, app: &mut App) {
+impl Plugin for TracerPipelinePlugin
+{
+	fn build(&self, app: &mut App)
+	{
 		app.add_plugins((ExtractResourcePlugin::<TracerUniforms>::default(),));
 		app.init_resource::<TracerUniforms>();
 
 		let render_app = app.sub_app_mut(RenderApp);
 
-		render_app.add_systems(Render, prepare_bind_groups.in_set(Render::PrepareBindGroups));
+		render_app.add_systems(Render, prepare_bind_groups.in_set(PrepareBindGroups));
 
 		let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
 		render_graph.add_node(TracerLabel, TracerNode::default());
@@ -31,19 +45,13 @@ impl Plugin for TracerPipelinePlugin {
 	}
 }
 
-#[derive(Resource)]
-pub struct TracerPipeline {
-	pub texture_bind_group_layout: BindGroupLayout,
-	pub init_pipeline: CachedComputePipelineId,
-	pub update_pipeline: CachedComputePipelineId,
-}
-
 fn init_pipeline(
 	mut commands: Commands,
 	render_device: Res<RenderDevice>,
 	asset_server: Res<AssetServer>,
 	pipeline_cache: Res<PipelineCache>,
-) {
+)
+{
 	let texture_bind_group_layout = render_device.create_bind_group_layout(
 		"TracerImages",
 		&BindGroupLayoutEntries::sequential(
@@ -55,11 +63,23 @@ fn init_pipeline(
 			),
 		),
 	);
-	let shader = asset_server.load(SHADER_ASSET_PATH);
+	let descriptor = BindGroupLayoutDescriptor {
+		entries: BindGroupLayoutEntries::sequential(
+			ShaderStages::COMPUTE,
+			(
+				uniform_buffer::<TracerUniforms>(false),
+				texture_cube(TextureSampleType::Float { filterable: true }),
+				sampler(SamplerBindingType::Filtering),
+			),
+		)
+		.to_vec(),
+		label: Cow::from("Tracer Images"),
+	};
+	let shader = asset_server.load("assets/trace-compute.wgsl");
 	let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-		layout: vec![texture_bind_group_layout.clone()],
+		layout: vec![descriptor.clone()],
 		shader: shader.clone(),
-		entry_point: Cow::from("init"),
+		entry_point: Some(Cow::from("init")),
 		label: None,
 		zero_initialize_workgroup_memory: false,
 		push_constant_ranges: Default::default(),
@@ -67,9 +87,9 @@ fn init_pipeline(
 	});
 
 	let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-		layout: vec![texture_bind_group_layout.clone()],
+		layout: vec![descriptor.clone()],
 		shader,
-		entry_point: Cow::from("update"),
+		entry_point: Some(Cow::from("update")),
 		label: None,
 		zero_initialize_workgroup_memory: false,
 		push_constant_ranges: Default::default(),
@@ -91,7 +111,8 @@ fn prepare_bind_groups(
 	tracer_uniforms: Res<TracerUniforms>,
 	render_device: Res<RenderDevice>,
 	queue: Res<RenderQueue>,
-) {
+)
+{
 	let view_a = gpu_images.get(&tracer_images.main).unwrap();
 	let view_b = gpu_images.get(&tracer_images.secondary).unwrap();
 	let skybox = gpu_images.get(&tracer_images.skybox).unwrap();
