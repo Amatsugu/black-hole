@@ -82,8 +82,7 @@ fn init_pipeline(
 		entry_point: Some(Cow::from("init")),
 		label: None,
 		zero_initialize_workgroup_memory: false,
-		push_constant_ranges: Default::default(),
-		shader_defs: Default::default(),
+		..Default::default()
 	});
 
 	let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -92,8 +91,7 @@ fn init_pipeline(
 		entry_point: Some(Cow::from("update")),
 		label: None,
 		zero_initialize_workgroup_memory: false,
-		push_constant_ranges: Default::default(),
-		shader_defs: Default::default(),
+		..Default::default()
 	});
 
 	commands.insert_resource(TracerPipeline {

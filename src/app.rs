@@ -33,7 +33,7 @@ impl Plugin for Blackhole
 			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
 			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
 			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
-		app.add_plugins(TracerPlugin);
+		app.add_plugins((TracerPlugin, DiagnosticsOverlayPlugin ));
 	}
 }
 
@@ -45,6 +45,7 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 )
 {
+	commands.spawn(DiagnosticsOverlay::fps());
 	let skybox_asset = asset_server.load("sky-array.png");
 	commands.spawn((
 		Name::new("Render Display"),
@@ -106,7 +107,7 @@ fn prepare_skybox(
 	// 	dimension: Some(TextureViewDimension::Cube),
 	// 	..default()
 	// });
-	let mat = materials
+	let mut mat = materials
 		.get_mut(display.0.id())
 		.expect("Tracer Materials doesn't exist");
 	mat.skybox = Some(skybox.0.clone());
