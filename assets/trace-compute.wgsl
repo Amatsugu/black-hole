@@ -1,11 +1,10 @@
 
 @group(0) @binding(0) var input: texture_storage_2d<rgba32float, read>;
-
 @group(0) @binding(1) var output: texture_storage_2d<rgba32float, write>;
 
-@group(0) @binding(2) var<uniform> config: TracerUniforms;
-@group(0) @binding(3) var skybox_texture: texture_cube<f32>;
-@group(0) @binding(4) var skybox_sampler: sampler;
+@group(0) @binding(2) var<uniform> view: TracerUniforms;
+// @group(0) @binding(3) var skybox_texture: texture_cube<f32>;
+// @group(0) @binding(4) var skybox_sampler: sampler;
 
 struct View {
 	view_proj: mat4x4<f32>,
@@ -26,14 +25,14 @@ struct Object {
 // 0: shpere
 // 1: plane
 // 2: cube
-	type: u32,
+	obj_type: u32,
 	position: vec3<f32>,
 	rotation: vec4<f32>,
 	scale: vec3<f32>
 }
 
 @compute @workgroup_size(8, 8, 1)
-fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
+fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
 	let color = vec4(0.0);
@@ -61,11 +60,12 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     final_color = final_color * step_factor;
 
 
+
 	var color = vec4<f32>(final_color, 1.0);
     if hit_data.distance == 100.0 {
-    	color = config.sky_color;
-    	// color = textureSampleLevel(skybox_texture, skybox_sampler, vec3<f32>(0.0, 0.0, 1.0), 0, 0u);
+    	color = view.sky_color;
     }
+
 	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
 	textureStore(output, location, color);
@@ -77,15 +77,15 @@ fn debug_matrix(uv: vec2<f32>) -> vec4<f32>{
 
 	if uv.y < 0.5 {
 		if uv.x < 0.5 {
-			color = debugColor(config.world_from_clip[0][3] * 10);
+			color = debugColor(view.world_from_clip[0][3] * 10);
 		}else{
-			color = debugColor(config.world_from_clip[1][3] * 10);
+			color = debugColor(view.world_from_clip[1][3] * 10);
 		}
 	}else{
 		if uv.x < 0.5 {
-			color = debugColor(config.world_from_clip[3][2] * 10);
+			color = debugColor(view.world_from_clip[3][2] * 10);
 		}else{
-			color = debugColor(config.world_from_clip[3][3] * 10);
+			color = debugColor(view.world_from_clip[3][3] * 10);
 		}
 	}
 
@@ -99,8 +99,8 @@ fn debug(uv: vec2<f32>) -> vec4<f32>{
 	let far_clip  = vec4<f32>(ndc, 1.0, 1.0);
 
 	// project into world space
-	let near_world4 = config.world_from_clip * near_clip;
-	let far_world4  = config.world_from_clip * far_clip;
+	let near_world4 = view.world_from_clip * near_clip;
+	let far_world4  = view.world_from_clip * far_clip;
 
 	//Add epsilon to protect from divide by zero
 	let inv_w_near = 1.0 / (near_world4.w + 1e-6);
@@ -109,7 +109,7 @@ fn debug(uv: vec2<f32>) -> vec4<f32>{
 	let near_world = near_world4.xyz * inv_w_near;
 	let far_world  = far_world4.xyz * inv_w_far;
 
-	let origin = config.world_position;
+	let origin = view.world_position;
 
 	let direction = normalize(near_world - origin);
 
@@ -137,12 +137,6 @@ fn debugColor(v: f32) -> vec3<f32>{
 	return vec3<f32>(v * 0.5 + 0.5);
 }
 
-struct Ray {
-	origin: vec3<f32>,
-	direction: vec3<f32>,
-	energy: vec3<f32>,
-}
-
 fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
 {
 	var ray: Ray;
@@ -160,8 +154,8 @@ fn createCameraRay(ndc: vec2<f32>) -> Ray {
 	let far_clip  = vec4<f32>(uv, 1.0, 1.0);
 
 	// project into world space
-	let near_world4 = config.world_from_clip * near_clip;
-	let far_world4  = config.world_from_clip * far_clip;
+	let near_world4 = view.world_from_clip * near_clip;
+	let far_world4  = view.world_from_clip * far_clip;
 
 	//Add epsilon to protect from divide by zero
 	let inv_w_near = 1.0 / (near_world4.w + 1e-6);
@@ -170,21 +164,13 @@ fn createCameraRay(ndc: vec2<f32>) -> Ray {
 	let near_world = near_world4.xyz * inv_w_near;
 	let far_world  = far_world4.xyz * inv_w_far;
 
-	let origin = config.world_position;
+	let origin = view.world_position;
 
 	let direction = normalize(near_world - origin);
 
 	return createRay(origin, direction);
 }
 
-struct Hit {
-    distance: f32,
-    hit_pos: vec3<f32>,
-    normal: vec3<f32>,
-    color: vec3<f32>,
-    direction: vec3<f32>,
-    steps: i32,
-};
 
 fn distance_field(p: vec3<f32>) -> f32 {
     // Simple sphere centered at (0, 0, 0) with radius 1.0
@@ -224,3 +210,18 @@ fn trace(ray: Ray) -> Hit {
     // No hit found
     return Hit(max_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), ray.direction, max_steps); // Return black for background
 }
+
+struct Ray {
+	origin: vec3<f32>,
+	direction: vec3<f32>,
+	energy: vec3<f32>,
+}
+
+struct Hit {
+    distance: f32,
+    hit_pos: vec3<f32>,
+    normal: vec3<f32>,
+    color: vec3<f32>,
+    direction: vec3<f32>,
+    steps: i32,
+};
