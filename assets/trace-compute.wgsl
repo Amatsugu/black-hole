@@ -1,35 +1,19 @@
 
 @group(0) @binding(0) var input: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(1) var output: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var<storage, read> objects: array<TracerObject>;
 
-@group(0) @binding(2) var<uniform> view: TracerUniforms;
+@group(0) @binding(3) var<uniform> view: TracerUniforms;
 // @group(0) @binding(3) var skybox_texture: texture_cube<f32>;
 // @group(0) @binding(4) var skybox_sampler: sampler;
-
-struct View {
-	view_proj: mat4x4<f32>,
-	view: mat4x4<f32>,
-	projection: mat4x4<f32>,
-	inv_view_proj: mat4x4<f32>,
-	inv_view: mat4x4<f32>, // equiv to Unity's _CameraToWorld
-	inv_projection: mat4x4<f32>, // equic to Unity's _CameraInverseProjection
-};
 
 struct TracerUniforms {
 	sky_color: vec4<f32>,
 	world_from_clip: mat4x4<f32>,
 	world_position: vec3<f32>,
+	sun_dir: vec3<f32>,
 }
 
-struct Object {
-// 0: shpere
-// 1: plane
-// 2: cube
-	obj_type: u32,
-	position: vec3<f32>,
-	rotation: vec4<f32>,
-	scale: vec3<f32>
-}
 
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
@@ -54,17 +38,19 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	let hit_data = trace(ray);
 
 
-    var final_color = hit_data.color;
+	var final_color = hit_data.color;
 
-    let step_factor = f32(hit_data.steps)/100.0;
-    final_color = final_color * step_factor;
+	let step_factor = f32(hit_data.steps)/100.0;
+	final_color = final_color * step_factor;
 
 
 
 	var color = vec4<f32>(final_color, 1.0);
-    if hit_data.distance == 100.0 {
-    	color = view.sky_color;
-    }
+	if hit_data.distance == 100.0 {
+		// color = view.sky_color;
+		let dir = ray.origin - hit_data.position;
+		color = vec4<f32>(hit_data.direction + vec3<f32>(0.5), 0.5);
+	}
 
 	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
@@ -173,42 +159,81 @@ fn createCameraRay(ndc: vec2<f32>) -> Ray {
 
 
 fn distance_field(p: vec3<f32>) -> f32 {
-    // Simple sphere centered at (0, 0, 0) with radius 1.0
-    let sphere_center = vec3<f32>(0.0, 0.0, 0.0);
-    let sphere_radius = 1.0;
+	var d = 999999999.9;
 
-    // SDF for a sphere: length(p - center) - radius
-    let d = length(p - sphere_center) - sphere_radius;
-    return d;
+	let len = arrayLength(&objects);
+	for (var i: u32 = 0; i < len; i = i + 1){
+		let cur_d = sdf_sphere(objects[i], p);
+		if cur_d < d{
+			d = cur_d;
+		 }
+	}
+
+	return d;
+}
+
+fn sdf_sphere(object: TracerObject, point: vec3<f32>) -> f32{
+	let sphere_center = object.position;
+	let sphere_radius = object.scale.x;
+	return length(point - sphere_center) - sphere_radius;
 }
 
 fn trace(ray: Ray) -> Hit {
-    var total_distance: f32 = 0.0;
-    let max_distance: f32 = 100.0;
-    let min_hit_distance: f32 = 0.001;
-    const max_steps: i32 = 100;
+	var total_distance: f32 = 0.0;
+	let max_distance: f32 = 100.0;
+	let min_hit_distance: f32 = 0.001;
+	const max_steps: i32 = 10000;
 
-    for (var i: i32 = 0; i < max_steps; i = i + 1) {
-        let current_pos = ray.origin + ray.direction * total_distance;
-        let distance_to_scene = distance_field(current_pos);
+	let c : f32= 300000000.0;
+	var current_pos = ray.origin;
+	var vel = ray.direction * c * (0.1/c);
+	for (var i: i32 = 0; i < max_steps; i = i + 1) {
+		current_pos = current_pos + vel;
+		let distance_to_scene = distance_field(current_pos);
 
-        // Check for a hit
-        if (distance_to_scene < min_hit_distance) {
-            // A hit occurred!
-            return Hit(total_distance, current_pos, vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), ray.direction, i); // Return red color for now
-        }
+		let t = distance_to_scene/c;
+		let acc = calc_g(current_pos);
+		vel = normalize(vel + get_vel(acc, t)) * c * t;
 
-        // Check if we marched too far
-        if (total_distance > max_distance) {
-            break;
-        }
 
-        // Advance the ray
-        total_distance = total_distance + distance_to_scene;
-    }
+		// Check for a hit
+		if (distance_to_scene < min_hit_distance) {
+			// A hit occurred!
+			return Hit(total_distance, current_pos, vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), normalize(vel), i); // Return red color for now
+		}
 
-    // No hit found
-    return Hit(max_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), ray.direction, max_steps); // Return black for background
+		// Check if we marched too far
+		if (total_distance > max_distance) {
+			break;
+		}
+
+		// Advance the ray
+		total_distance = total_distance + distance_to_scene;
+	}
+
+	// No hit found
+	return Hit(max_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), normalize(vel), max_steps); // Return black for background
+}
+
+fn get_vel(g: vec3<f32>, t: f32) -> vec3<f32>{
+	return 2.0 * g * t;
+}
+
+fn g_acc(object: TracerObject , p: vec3<f32>) -> vec3<f32>{
+	let G = 6.6743e-11;
+	let dir = p - object.position;
+	let r = length(dir);
+	let acc = (G * object.mass * 10)/(r*r);
+	return normalize(dir) * acc;
+}
+
+fn calc_g(p: vec3<f32>) -> vec3<f32>{
+	let len = arrayLength(&objects);
+	var acc = vec3<f32>(0);
+	for (var i: u32 = 0; i < len; i = i + 1){
+		acc = acc + g_acc(objects[i], p);
+	}
+	return acc;
 }
 
 struct Ray {
@@ -218,10 +243,22 @@ struct Ray {
 }
 
 struct Hit {
-    distance: f32,
-    hit_pos: vec3<f32>,
-    normal: vec3<f32>,
-    color: vec3<f32>,
-    direction: vec3<f32>,
-    steps: i32,
+	distance: f32,
+	position: vec3<f32>,
+	normal: vec3<f32>,
+	color: vec3<f32>,
+	direction: vec3<f32>,
+	steps: i32,
 };
+
+
+struct TracerObject {
+// 0: shpere
+// 1: plane
+// 2: cube
+	obj_type: u32,
+	position: vec3<f32>,
+	rotation: vec4<f32>,
+	scale: vec3<f32>,
+	mass: f32
+}

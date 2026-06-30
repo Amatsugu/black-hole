@@ -43,3 +43,16 @@ pub enum TracerState
 	Init,
 	Update(usize),
 }
+
+#[derive(Clone, Reflect, ShaderType, Default, Debug)]
+pub struct TracerObject
+{
+	pub obj_typef: u32,
+	pub position: Vec3,
+	pub rotation: Vec4,
+	pub scale: Vec3,
+	pub mass: f32,
+}
+
+#[derive(Resource, ExtractResource, Reflect, Debug, Default, Clone)]
+pub struct TracerData(pub Vec<TracerObject>);

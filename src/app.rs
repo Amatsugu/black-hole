@@ -1,9 +1,7 @@
 use bevy::{
 	asset::RenderAssetUsages,
-	camera::visibility::RenderLayers,
 	prelude::*,
 	render::render_resource::{TextureFormat, TextureUsages},
-	window::PrimaryWindow,
 };
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 #[cfg(feature = "dev")]
@@ -11,7 +9,7 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::{
 	SIZE,
-	components::rt::{RTCamera, RTDisplay},
+	components::rt::{RTCamera, RTDisplay, RTMass, RTObject},
 	render::{
 		resources::{TracerRenderTextures, TracerUniforms},
 		tracer::TracerPlugin,
@@ -38,9 +36,10 @@ impl Plugin for Blackhole
 	fn build(&self, app: &mut App)
 	{
 		app.init_state::<AssetLoad>();
-		app.add_systems(Startup, setup)
+		app.add_systems(Startup, (setup, setup_objects))
 			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
 			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
+			.add_systems(Update, rotate)
 			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
 		app.add_plugins((TracerPlugin, EguiPlugin::default()));
 		#[cfg(feature = "dev")]
@@ -81,11 +80,10 @@ fn setup(
 			..default()
 		},
 		RTDisplay,
+		Transform::from_xyz(0.0, 0.0, -1.0),
 	));
 
-	commands
-		.spawn((Camera2d, RenderLayers::layer(0)))
-		.insert(Camera { order: 1, ..default() });
+	commands.spawn(Camera2d);
 
 	commands.spawn((
 		Projection::Perspective(PerspectiveProjection {
@@ -93,9 +91,13 @@ fn setup(
 			..default()
 		}),
 		RTCamera,
-		RenderLayers::layer(1),
 		Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
 		Name::new("RT Camera"),
+	));
+
+	commands.spawn((
+		DirectionalLight::default(),
+		Transform::from_xyz(10., 10., 10.).looking_at(Vec3::ZERO, Vec3::Y),
 	));
 
 	load_state.set(AssetLoad::Loading);
@@ -104,6 +106,37 @@ fn setup(
 		sky_color: LinearRgba::rgb(0.0, 0.0, 0.0),
 		..default()
 	});
+}
+
+#[derive(Component, Reflect)]
+struct Rotator(pub f32);
+
+fn setup_objects(mut commands: Commands)
+{
+	commands
+		.spawn((RTObject(0), RTMass(1e17), Rotator(10_f32.to_radians())))
+		.with_children(|cmd| {
+			for i in 0..10
+			{
+				let a = f32::to_radians(i as f32 * 36.0);
+				cmd.spawn((
+					RTObject(0),
+					Transform::from_scale(Vec3::splat(0.2)).with_translation(Vec3::new(
+						a.cos() * 2.0,
+						0.0,
+						a.sin() * 2.0,
+					)),
+				));
+			}
+		});
+}
+
+fn rotate(rotators: Query<(&mut Transform, &Rotator)>, time: Res<Time>)
+{
+	for (mut transform, rot) in rotators
+	{
+		transform.rotate_local_y(rot.0 * time.delta_secs());
+	}
 }
 
 fn asset_load_check(
@@ -120,7 +153,7 @@ fn asset_load_check(
 	}
 }
 
-fn prepare_skybox(skybox: Res<SkyboxAsset>, mut image_assets: ResMut<Assets<Image>>) {}
+fn prepare_skybox(_skybox: Res<SkyboxAsset>, mut _image_assets: ResMut<Assets<Image>>) {}
 
 fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>)
 {
