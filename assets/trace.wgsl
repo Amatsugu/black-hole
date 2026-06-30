@@ -24,10 +24,10 @@ fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
 
    var color = vec4<f32>(final_color, 1.0);
    if hit_data.distance == 100.0 {
-   	// color = sky_color;
-   	color = textureSample(skybox_texture, skybox_sampler, vec2<f32>(0.0, 1.0), 1);
+   	color = sky_color;
+   // color = textureSample(skybox_texture, skybox_sampler, vec2<f32>(0.0, 1.0), 1);
    }
-    return color;
+   return color;
 }
 
 fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray

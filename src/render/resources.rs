@@ -1,15 +1,16 @@
 use bevy::{
+	material::descriptor::BindGroupLayoutDescriptor,
 	prelude::*,
 	render::{
 		extract_resource::ExtractResource,
-		render_resource::{BindGroup, BindGroupLayout, CachedComputePipelineId, ShaderType},
+		render_resource::{BindGroup, CachedComputePipelineId, ShaderType},
 	},
 };
 
 #[derive(Resource)]
 pub struct TracerPipeline
 {
-	pub texture_bind_group_layout: BindGroupLayout,
+	pub texture_bind_group_layout: BindGroupLayoutDescriptor,
 	pub init_pipeline: CachedComputePipelineId,
 	pub update_pipeline: CachedComputePipelineId,
 }
@@ -20,16 +21,25 @@ pub struct TracerUniforms
 	pub sky_color: LinearRgba,
 	pub world_from_clip: Mat4,
 	pub world_position: Vec3,
+	pub sun_dir: Vec3,
 }
 
 #[derive(Resource)]
-pub struct TracerImageBindGroups(pub [BindGroup; 2]);
+pub struct TracerImageBindGroup(pub [BindGroup; 2]);
 
-#[derive(Resource, Reflect, ExtractResource, Clone)]
-#[reflect(Resource)]
+#[derive(Resource, ExtractResource, Clone)]
 pub struct TracerRenderTextures
 {
-	pub main: Handle<Image>,
-	pub secondary: Handle<Image>,
-	pub skybox: Handle<Image>,
+	pub render_tex_1: Handle<Image>,
+	pub render_tex_2: Handle<Image>,
+	// pub skybox: Handle<Image>,
+}
+
+#[derive(Resource, Default)]
+pub enum TracerState
+{
+	#[default]
+	Loading,
+	Init,
+	Update(usize),
 }
