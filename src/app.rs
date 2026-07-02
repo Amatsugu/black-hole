@@ -9,7 +9,7 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::{
 	SIZE,
-	components::rt::{RTCamera, RTDisplay, RTMass, RTObject},
+	components::rt::{RTCamera, RTDisplay, RTHidden, RTMass, RTObject},
 	render::{
 		resources::{TracerRenderTextures, TracerUniforms},
 		tracer::TracerPlugin,
@@ -114,13 +114,13 @@ struct Rotator(pub f32);
 fn setup_objects(mut commands: Commands)
 {
 	commands
-		.spawn((RTObject(0), RTMass(1e17), Rotator(10_f32.to_radians())))
+		.spawn((RTObject, RTMass(1e18), RTHidden, Rotator(10_f32.to_radians())))
 		.with_children(|cmd| {
 			for i in 0..10
 			{
 				let a = f32::to_radians(i as f32 * 36.0);
 				cmd.spawn((
-					RTObject(0),
+					RTObject,
 					Transform::from_scale(Vec3::splat(0.2)).with_translation(Vec3::new(
 						a.cos() * 2.0,
 						0.0,

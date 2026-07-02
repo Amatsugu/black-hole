@@ -47,11 +47,11 @@ pub enum TracerState
 #[derive(Clone, Reflect, ShaderType, Default, Debug)]
 pub struct TracerObject
 {
-	pub obj_typef: u32,
 	pub position: Vec3,
 	pub rotation: Vec4,
-	pub scale: Vec3,
+	pub scale: f32,
 	pub mass: f32,
+	pub sw_radius: f32,
 }
 
 #[derive(Resource, ExtractResource, Reflect, Debug, Default, Clone)]
