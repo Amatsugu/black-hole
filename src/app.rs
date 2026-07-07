@@ -19,8 +19,7 @@ use crate::{
 pub struct Blackhole;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub enum AssetLoad
-{
+pub enum AssetLoad {
 	#[default]
 	Pending,
 	Loading,
@@ -31,13 +30,16 @@ pub enum AssetLoad
 #[derive(Debug, Resource)]
 struct SkyboxAsset(Handle<Image>);
 
-impl Plugin for Blackhole
-{
-	fn build(&self, app: &mut App)
-	{
+const AU: f32 = 1.496e11;
+
+impl Plugin for Blackhole {
+	fn build(&self, app: &mut App) {
 		app.init_state::<AssetLoad>();
 		app.add_systems(Startup, (setup, setup_objects))
-			.add_systems(Update, asset_load_check.run_if(in_state(AssetLoad::Loading)))
+			.add_systems(
+				Update,
+				asset_load_check.run_if(in_state(AssetLoad::Loading)),
+			)
 			.add_systems(Update, prepare_skybox.run_if(in_state(AssetLoad::Init)))
 			.add_systems(Update, rotate)
 			.add_systems(Last, asset_init.run_if(in_state(AssetLoad::Init)));
@@ -52,8 +54,7 @@ fn setup(
 	asset_server: Res<AssetServer>,
 	mut images: ResMut<Assets<Image>>,
 	mut load_state: ResMut<NextState<AssetLoad>>,
-)
-{
+) {
 	let skybox_asset = asset_server.load("sky-array.png");
 	commands.insert_resource(SkyboxAsset(skybox_asset.clone()));
 
@@ -91,7 +92,7 @@ fn setup(
 			..default()
 		}),
 		RTCamera,
-		Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
+		Transform::from_xyz(0.0, 0.0, AU * 1.5).looking_at(Vec3::ZERO, Vec3::Y),
 		Name::new("RT Camera"),
 	));
 
@@ -111,30 +112,31 @@ fn setup(
 #[derive(Component, Reflect)]
 struct Rotator(pub f32);
 
-fn setup_objects(mut commands: Commands)
-{
+fn setup_objects(mut commands: Commands) {
 	commands
-		.spawn((RTObject, RTMass(1e18), RTHidden, Rotator(10_f32.to_radians())))
+		.spawn((
+			RTObject,
+			RTMass(1.9e30),
+			RTHidden,
+			Rotator(10_f32.to_radians()),
+		))
 		.with_children(|cmd| {
-			for i in 0..10
-			{
+			for i in 0..10 {
 				let a = f32::to_radians(i as f32 * 36.0);
 				cmd.spawn((
 					RTObject,
-					Transform::from_scale(Vec3::splat(0.2)).with_translation(Vec3::new(
-						a.cos() * 2.0,
+					Transform::from_scale(Vec3::splat(6.3e6)).with_translation(Vec3::new(
+						a.cos() * AU,
 						0.0,
-						a.sin() * 2.0,
+						a.sin() * AU,
 					)),
 				));
 			}
 		});
 }
 
-fn rotate(rotators: Query<(&mut Transform, &Rotator)>, time: Res<Time>)
-{
-	for (mut transform, rot) in rotators
-	{
+fn rotate(rotators: Query<(&mut Transform, &Rotator)>, time: Res<Time>) {
+	for (mut transform, rot) in rotators {
 		transform.rotate_local_y(rot.0 * time.delta_secs());
 	}
 }
@@ -143,11 +145,9 @@ fn asset_load_check(
 	mut load_state: ResMut<NextState<AssetLoad>>,
 	skybox: Res<SkyboxAsset>,
 	asset_server: Res<AssetServer>,
-)
-{
+) {
 	let skybox_load_state = asset_server.load_state(skybox.0.id());
-	if skybox_load_state.is_loaded()
-	{
+	if skybox_load_state.is_loaded() {
 		load_state.set(AssetLoad::Init);
 		info!("Assets Loaded");
 	}
@@ -155,8 +155,7 @@ fn asset_load_check(
 
 fn prepare_skybox(_skybox: Res<SkyboxAsset>, mut _image_assets: ResMut<Assets<Image>>) {}
 
-fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>)
-{
+fn asset_init(mut load_state: ResMut<NextState<AssetLoad>>) {
 	load_state.set(AssetLoad::Ready);
 	info!("Assets Initialized");
 }

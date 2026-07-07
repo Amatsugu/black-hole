@@ -7,6 +7,11 @@
 // @group(0) @binding(3) var skybox_texture: texture_cube<f32>;
 // @group(0) @binding(4) var skybox_sampler: sampler;
 
+const max_steps: i32 = 10000000;
+const c : f32= 300000000.0;
+const max_distance: f32 = 1.496e11;
+const min_hit_distance: f32 = 0.001;
+
 struct TracerUniforms {
 	sky_color: vec4<f32>,
 	world_from_clip: mat4x4<f32>,
@@ -35,23 +40,24 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
 	var ray = createCameraRay(ndc);
 
-	let hit_data = trace(ray);
+	let hit_data = trace_v2(ray);
 
 
 	var final_color = hit_data.color;
 
-	let step_factor = f32(hit_data.steps)/100.0;
+	let step_factor = f32(hit_data.steps)/f32(max_steps);
 	final_color = final_color * step_factor;
 
 
 
 	var color = vec4<f32>(final_color, 1.0);
 	if hit_data.inside_swr{
-		color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
-	}else if hit_data.distance == 100.0 {
+		color = vec4<f32>(0.0, 0.0, 1.0, 1.0);
+	}else if hit_data.steps >= max_steps {
 		// color = view.sky_color;
 		let dir = ray.origin - hit_data.position;
-			color = vec4<f32>(hit_data.direction + 0.5, 0.5);
+		// color = vec4<f32>(hit_data.direction + 0.5, 0.5);
+		color = vec4<f32>(vec3(hit_data.distance / max_distance), 0.5);
 	}
 
 	let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
@@ -59,8 +65,7 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 	textureStore(output, location, color);
 }
 
-fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray
-{
+fn createRay(origin: vec3<f32>, direction: vec3<f32>) -> Ray {
 	var ray: Ray;
 	ray.origin = origin;
 	ray.direction = direction;
@@ -93,7 +98,6 @@ fn createCameraRay(ndc: vec2<f32>) -> Ray {
 	return createRay(origin, direction);
 }
 
-
 fn distance_field(p: vec3<f32>) -> f32 {
 	var d = 999999999.9;
 
@@ -122,27 +126,54 @@ fn distance_field_swr(p: vec3<f32>) -> f32 {
 	return d;
 }
 
-fn sdf_swr(object: TracerObject, point: vec3<f32>) -> f32{
+fn sdf_swr(object: TracerObject, point: vec3<f32>) -> f32 {
 	let sphere_center = object.position;
 	let sphere_radius = object.sw_radius;
 	return length(point - sphere_center) - sphere_radius;
 }
 
-fn sdf_sphere(object: TracerObject, point: vec3<f32>) -> f32{
+fn sdf_sphere(object: TracerObject, point: vec3<f32>) -> f32 {
 	let sphere_center = object.position;
 	let sphere_radius = object.scale;
 	return length(point - sphere_center) - sphere_radius;
 }
 
+fn trace_v2(ray: Ray) -> Hit {
+	const step_size: f32 = 1.0;
+
+	var total_distance: f32 = 0.0;
+	var current_pos = ray.origin;
+	var vel = ray.direction * c * step_size;
+
+
+	for (var i: i32 = 0; i < max_steps; i = i + 1) {
+		let pos = current_pos + vel;
+		total_distance = total_distance + length(current_pos - pos);
+		current_pos = pos;
+		let distance_to_scene = distance_field(current_pos);
+
+		let acc = calc_g(current_pos);
+		vel = normalize(vel + get_vel(acc, step_size)) * c * step_size;
+
+		if (distance_to_scene < min_hit_distance) {
+			return Hit(total_distance, current_pos, vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), normalize(vel), i, false);
+		}
+
+		if (total_distance > max_distance)
+		{
+			break;
+		}
+	}
+	return Hit(total_distance, vec3<f32>(0.0), vec3<f32>(0.0), vec3<f32>(0.0, 0.0, 0.0), normalize(vel), max_steps, false);
+}
 fn trace(ray: Ray) -> Hit {
 	var total_distance: f32 = 0.0;
-	let max_distance: f32 = 100.0;
-	let min_hit_distance: f32 = 0.001;
-	const max_steps: i32 = 10000;
 
-	let c : f32= 300000000.0;
 	var current_pos = ray.origin;
 	var vel = ray.direction * c * (0.1/c);
+
+
+
 	for (var i: i32 = 0; i < max_steps; i = i + 1) {
 		current_pos = current_pos + vel;
 		let distance_to_scene = distance_field(current_pos);
